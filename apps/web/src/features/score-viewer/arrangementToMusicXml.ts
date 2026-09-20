@@ -1,5 +1,5 @@
 import type { Melody, Note } from "@/features/piano-roll";
-import type { Arrangement, ArrangementPart } from "./arrangementTypes";
+import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol } from "./arrangementTypes";
 
 const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
 const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
@@ -40,6 +40,19 @@ function noteXml(durationBeats: number, note: Note | null): string {
   return pitches
     .map((pitch, i) => `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration><type>${type}</type></note>`)
     .join("");
+}
+
+const KIND_XML: Record<ChordQuality, string> = {
+  maj: '<kind text="">major</kind>',
+  min: '<kind text="m">minor</kind>',
+  dim: '<kind text="dim">diminished</kind>',
+};
+
+function harmonyXml(chord: ChordSymbol): string {
+  const step = STEP_NAMES[chord.root];
+  const alter = ALTERS[chord.root];
+  const rootXml = `<root-step>${step}</root-step>${alter ? `<root-alter>${alter}</root-alter>` : ""}`;
+  return `<harmony><root>${rootXml}</root>${KIND_XML[chord.quality]}</harmony>`;
 }
 
 function clefXml(clef: "treble" | "bass"): string {
@@ -87,7 +100,12 @@ function melodyToMeasures(melody: Melody): string[][] {
   return measures;
 }
 
-function partMeasuresXml(part: ArrangementPart, beatsPerBar: number, measureCount: number): string {
+function partMeasuresXml(
+  part: ArrangementPart,
+  beatsPerBar: number,
+  measureCount: number,
+  chordsPerMeasure?: ChordSymbol[],
+): string {
   const measures = melodyToMeasures(part.melody);
   while (measures.length < measureCount) {
     measures.push([noteXml(beatsPerBar, null)]);
@@ -99,7 +117,8 @@ function partMeasuresXml(part: ArrangementPart, beatsPerBar: number, measureCoun
         i === 0
           ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}</attributes>`
           : "";
-      return `<measure number="${i + 1}">${attrs}${notesXml.join("")}</measure>`;
+      const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
+      return `<measure number="${i + 1}">${attrs}${harmony}${notesXml.join("")}</measure>`;
     })
     .join("");
 }
@@ -113,7 +132,10 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
     .map((p) => `<score-part id="${p.id}"><part-name>${p.name}</part-name></score-part>`)
     .join("");
   const parts = arrangement.parts
-    .map((p) => `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount)}</part>`)
+    .map((p) => {
+      const chordsPerMeasure = p.id === "melody" ? arrangement.chords : undefined;
+      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure)}</part>`;
+    })
     .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>

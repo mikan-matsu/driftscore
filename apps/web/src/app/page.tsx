@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement } from "@/features/score-viewer";
+import { playArrangement, stopPlayback } from "@/features/playback";
 
 type Step = "pick" | "options" | "result";
 
@@ -15,6 +16,7 @@ export default function Home() {
   const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30 });
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
+  const [isPlaying, setIsPlaying] = useState(false);
 
   function handleSelectSong(song: PresetSong) {
     setSelectedSong(song);
@@ -23,6 +25,8 @@ export default function Home() {
 
   async function handleGenerate() {
     if (!selectedSong || !API_URL) return;
+    stopPlayback();
+    setIsPlaying(false);
     setStatus("loading");
     setStep("result");
     try {
@@ -42,6 +46,24 @@ export default function Home() {
     } catch {
       setStatus("error");
     }
+  }
+
+  const BPM = 108;
+
+  async function handleTogglePlay() {
+    if (!arrangement) return;
+    if (isPlaying) {
+      stopPlayback();
+      setIsPlaying(false);
+      return;
+    }
+    setIsPlaying(true);
+    const lastEnd = Math.max(
+      0,
+      ...arrangement.parts.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
+    );
+    await playArrangement(arrangement, BPM);
+    window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
   }
 
   return (
@@ -88,6 +110,13 @@ export default function Home() {
             )}
             {status === "done" && arrangement && (
               <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleTogglePlay}
+                  className="self-start rounded-full bg-[#0a422f] px-6 py-2 text-sm font-medium text-white hover:bg-[#0a422f]/90"
+                >
+                  {isPlaying ? "■ 停止" : "▶ 再生"}
+                </button>
                 <ScoreViewer
                   musicXml={arrangementToMusicXml(arrangement, selectedSong?.title)}
                   title={selectedSong?.title}
