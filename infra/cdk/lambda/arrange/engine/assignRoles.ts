@@ -24,6 +24,32 @@ function foldMelodyToRange(melody: Melody, low: number, high: number): Melody {
   };
 }
 
+/**
+ * Drops any accompaniment note whose register collides with the melody note
+ * sounding at the same time down an octave (as long as that stays within
+ * `low`), so comping doesn't fight the melody for the same register.
+ */
+function lowerBelowMelody(melody: Melody, melodyNotes: Note[], low: number): Melody {
+  return {
+    ...melody,
+    notes: melody.notes.map((n) => {
+      const pitches = n.pitches ?? [n.pitch];
+      const overlapping = melodyNotes.filter(
+        (m) => m.start < n.start + n.duration && n.start < m.start + m.duration,
+      );
+      if (overlapping.length === 0) return n;
+      const melodyFloor = Math.min(...overlapping.map((m) => m.pitch));
+      let shift = 0;
+      while (Math.max(...pitches) + shift >= melodyFloor && Math.min(...pitches) + shift - 12 >= low) {
+        shift -= 12;
+      }
+      if (shift === 0) return n;
+      const shifted = pitches.map((p) => p + shift);
+      return { ...n, pitch: shifted[0], pitches: shifted.length > 1 ? shifted : undefined };
+    }),
+  };
+}
+
 function pickMelodyInstrument(ensemble: InstrumentDef[]): InstrumentDef {
   return ensemble.find((i) => i.roleAffinity === "melody") ?? ensemble[0];
 }
@@ -100,77 +126,65 @@ export function assignRoles(
   const bassInstrument = pickBassInstrument(remaining);
   const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
 
-  const parts: ArrangementPart[] = [];
-
-  parts.push({
+  const melodyPart: ArrangementPart = {
     id: melodyInstrument.id,
     name: melodyInstrument.name,
     clef: melodyInstrument.clef,
     transposeSemitones: melodyInstrument.transposeSemitones,
     polyphonic: melodyInstrument.polyphonic,
     melody: foldMelodyToRange(embellishMelody(melody, distortion, key), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
-  });
+  };
+  const melodyNotes = melodyPart.melody.notes;
 
-  if (bassInstrument) {
-    parts.push({
-      id: bassInstrument.id,
-      name: bassInstrument.name,
-      clef: bassInstrument.clef,
-      transposeSemitones: bassInstrument.transposeSemitones,
-      polyphonic: bassInstrument.polyphonic,
-      melody: foldMelodyToRange(
-        { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) },
-        bassInstrument.rangeLow,
-        bassInstrument.rangeHigh,
-      ),
-    });
-  }
-
+  const harmonyParts: ArrangementPart[] = [];
   const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
   const monoHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
 
-  if (polyHarmony.length > 0) {
-    for (const instrument of polyHarmony) {
-      parts.push({
-        id: instrument.id,
-        name: instrument.name,
-        clef: instrument.clef,
-        transposeSemitones: instrument.transposeSemitones,
-        polyphonic: instrument.polyphonic,
-        melody: foldMelodyToRange(
-          { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar) },
-          instrument.rangeLow,
-          instrument.rangeHigh,
-        ),
-      });
-    }
-    // Any remaining monophonic harmony instruments double the chord's top voice.
-    if (monoHarmony.length > 0) {
-      const voices = renderHarmonyVoices(chords, genre, beatsPerBar, monoHarmony);
-      for (const instrument of monoHarmony) {
-        parts.push({
-          id: instrument.id,
-          name: instrument.name,
-          clef: instrument.clef,
-          transposeSemitones: instrument.transposeSemitones,
-          polyphonic: instrument.polyphonic,
-          melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
-        });
-      }
-    }
-  } else if (monoHarmony.length > 0) {
+  for (const instrument of polyHarmony) {
+    const inRange = foldMelodyToRange(
+      { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar) },
+      instrument.rangeLow,
+      instrument.rangeHigh,
+    );
+    harmonyParts.push({
+      id: instrument.id,
+      name: instrument.name,
+      clef: instrument.clef,
+      transposeSemitones: instrument.transposeSemitones,
+      polyphonic: instrument.polyphonic,
+      melody: lowerBelowMelody(inRange, melodyNotes, instrument.rangeLow),
+    });
+  }
+  if (monoHarmony.length > 0) {
     const voices = renderHarmonyVoices(chords, genre, beatsPerBar, monoHarmony);
     for (const instrument of monoHarmony) {
-      parts.push({
+      const inRange: Melody = { beatsPerBar, notes: voices.get(instrument.id) ?? [] };
+      harmonyParts.push({
         id: instrument.id,
         name: instrument.name,
         clef: instrument.clef,
         transposeSemitones: instrument.transposeSemitones,
         polyphonic: instrument.polyphonic,
-        melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
+        melody: lowerBelowMelody(inRange, melodyNotes, instrument.rangeLow),
       });
     }
   }
 
-  return parts;
+  const bassPart: ArrangementPart | null = bassInstrument
+    ? {
+        id: bassInstrument.id,
+        name: bassInstrument.name,
+        clef: bassInstrument.clef,
+        transposeSemitones: bassInstrument.transposeSemitones,
+        polyphonic: bassInstrument.polyphonic,
+        melody: foldMelodyToRange(
+          { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) },
+          bassInstrument.rangeLow,
+          bassInstrument.rangeHigh,
+        ),
+      }
+    : null;
+
+  // Staff order top-to-bottom: melody, then harmony (high to low register), then bass at the very bottom.
+  return [melodyPart, ...harmonyParts, ...(bassPart ? [bassPart] : [])];
 }
