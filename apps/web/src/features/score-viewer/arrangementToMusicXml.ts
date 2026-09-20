@@ -5,13 +5,13 @@ const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
 const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const DIVISIONS = 4;
 
-const DURATION_TYPES: Record<number, string> = {
-  0.25: "16th",
-  0.5: "eighth",
-  1: "quarter",
-  2: "half",
-  4: "whole",
-};
+const DURATION_TYPES: [beats: number, type: string][] = [
+  [0.25, "16th"],
+  [0.5, "eighth"],
+  [1, "quarter"],
+  [2, "half"],
+  [4, "whole"],
+];
 
 function pitchToStepOctaveAlter(pitch: number) {
   const step = STEP_NAMES[pitch % 12];
@@ -20,8 +20,13 @@ function pitchToStepOctaveAlter(pitch: number) {
   return { step, alter, octave };
 }
 
-function noteTypeFor(beats: number): string {
-  return DURATION_TYPES[beats] ?? "quarter";
+/** Resolves a duration in beats to a MusicXML note type, detecting dotted values (1.5x a base type). */
+function noteTypeAndDots(beats: number): { type: string; dotted: boolean } {
+  for (const [base, type] of DURATION_TYPES) {
+    if (Math.abs(beats - base) < 1e-6) return { type, dotted: false };
+    if (Math.abs(beats - base * 1.5) < 1e-6) return { type, dotted: true };
+  }
+  return { type: "quarter", dotted: false };
 }
 
 function pitchXml(pitch: number): string {
@@ -31,14 +36,18 @@ function pitchXml(pitch: number): string {
 
 function noteXml(durationBeats: number, note: Note | null): string {
   const duration = Math.round(durationBeats * DIVISIONS);
-  const type = noteTypeFor(durationBeats);
+  const { type, dotted } = noteTypeAndDots(durationBeats);
+  const dotXml = dotted ? "<dot/>" : "";
   const pitches = note ? (note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch]) : [];
 
   if (pitches.length === 0) {
-    return `<note><rest/><duration>${duration}</duration><type>${type}</type></note>`;
+    return `<note><rest/><duration>${duration}</duration><type>${type}</type>${dotXml}</note>`;
   }
   return pitches
-    .map((pitch, i) => `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration><type>${type}</type></note>`)
+    .map(
+      (pitch, i) =>
+        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration><type>${type}</type>${dotXml}</note>`,
+    )
     .join("");
 }
 

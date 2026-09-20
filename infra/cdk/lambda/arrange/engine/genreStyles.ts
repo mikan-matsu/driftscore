@@ -105,30 +105,31 @@ const STYLES: Record<Genre, GenreStyle> = {
     chordOctaveBase: 45,
     bassOctaveBase: 33,
     useSeventh: true,
+    // Bossa/samba comping cell: dotted-eighth + sixteenth, repeated every beat
+    // ("ター・タ、ター・タ..."), plus a tresillo (3-3-2) variant for rotation.
     chordPatterns: [
       [
-        { offset: 0, duration: 0.5, tones: [0, 1, 2] },
-        { offset: 1.5, duration: 0.5, tones: [0, 1, 2] },
-        { offset: 2.5, duration: 1, tones: [0, 1, 2] },
+        { offset: 0, duration: 0.75, tones: [0, 1, 2] },
+        { offset: 0.75, duration: 0.25, tones: [0, 1, 2] },
+        { offset: 1, duration: 0.75, tones: [0, 1, 2] },
+        { offset: 1.75, duration: 0.25, tones: [0, 1, 2] },
+        { offset: 2, duration: 0.75, tones: [0, 1, 2] },
+        { offset: 2.75, duration: 0.25, tones: [0, 1, 2] },
+        { offset: 3, duration: 0.75, tones: [0, 1, 2] },
+        { offset: 3.75, duration: 0.25, tones: [0, 1, 2] },
       ],
       [
-        { offset: 0.5, duration: 0.5, tones: [0, 1, 2] },
-        { offset: 1.5, duration: 0.5, tones: [0, 1, 2] },
-        { offset: 2, duration: 0.5, tones: [0, 1, 2] },
-        { offset: 3.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 0, duration: 1.5, tones: [0, 1, 2] },
+        { offset: 1.5, duration: 1.5, tones: [0, 1, 2] },
+        { offset: 3, duration: 1, tones: [0, 1, 2] },
       ],
     ],
     bassPatterns: [
       [
         { offset: 0, duration: 1, tones: [0] },
-        { offset: 1.5, duration: 1, tones: [2] },
+        { offset: 1, duration: 1, tones: [0] },
+        { offset: 2, duration: 1, tones: [0] },
         { offset: 3, duration: 1, tones: [0] },
-      ],
-      [
-        { offset: 0, duration: 1, tones: [0] },
-        { offset: 1, duration: 0.5, tones: [0] },
-        { offset: 2, duration: 1, tones: [2] },
-        { offset: 3.5, duration: 0.5, tones: [0] },
       ],
     ],
   },
