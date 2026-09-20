@@ -23,5 +23,7 @@ export interface Arrangement {
   ensembleId: string;
   beatsPerBar: number;
   chords: ChordSymbol[];
+  /** id of the part carrying the original melody — chord symbols attach to this part */
+  melodyPartId: string;
   parts: ArrangementPart[];
 }

@@ -23,6 +23,7 @@ export function generateArrangement(
     ensembleId: preset.id,
     beatsPerBar,
     chords,
+    melodyPartId: parts[0].id,
     parts,
   };
 }

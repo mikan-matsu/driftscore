@@ -27,7 +27,8 @@ function pickMelodyInstrument(ensemble: InstrumentDef[]): InstrumentDef {
   return ensemble.find((i) => i.roleAffinity === "melody") ?? ensemble[0];
 }
 
-function pickBassInstrument(candidates: InstrumentDef[]): InstrumentDef {
+function pickBassInstrument(candidates: InstrumentDef[]): InstrumentDef | null {
+  if (candidates.length === 0) return null;
   return (
     candidates.find((i) => i.roleAffinity === "bass") ??
     candidates.reduce((lowest, i) => (i.rangeLow < lowest.rangeLow ? i : lowest))
@@ -95,7 +96,7 @@ export function assignRoles(
   const melodyInstrument = pickMelodyInstrument(ensemble);
   const remaining = ensemble.filter((i) => i.id !== melodyInstrument.id);
   const bassInstrument = pickBassInstrument(remaining);
-  const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument.id);
+  const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
 
   const parts: ArrangementPart[] = [];
 
@@ -108,18 +109,20 @@ export function assignRoles(
     melody: foldMelodyToRange(embellishMelody(melody, distortion), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
   });
 
-  parts.push({
-    id: bassInstrument.id,
-    name: bassInstrument.name,
-    clef: bassInstrument.clef,
-    transposeSemitones: bassInstrument.transposeSemitones,
-    polyphonic: bassInstrument.polyphonic,
-    melody: foldMelodyToRange(
-      { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) },
-      bassInstrument.rangeLow,
-      bassInstrument.rangeHigh,
-    ),
-  });
+  if (bassInstrument) {
+    parts.push({
+      id: bassInstrument.id,
+      name: bassInstrument.name,
+      clef: bassInstrument.clef,
+      transposeSemitones: bassInstrument.transposeSemitones,
+      polyphonic: bassInstrument.polyphonic,
+      melody: foldMelodyToRange(
+        { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) },
+        bassInstrument.rangeLow,
+        bassInstrument.rangeHigh,
+      ),
+    });
+  }
 
   const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
   const monoHarmony = harmonyInstruments.filter((i) => !i.polyphonic);

@@ -147,8 +147,8 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
     .map((p) => `<score-part id="${p.id}"><part-name>${p.name}</part-name></score-part>`)
     .join("");
   const parts = arrangement.parts
-    .map((p, i) => {
-      const chordsPerMeasure = i === 0 ? arrangement.chords : undefined;
+    .map((p) => {
+      const chordsPerMeasure = p.id === arrangement.melodyPartId ? arrangement.chords : undefined;
       return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure)}</part>`;
     })
     .join("");
