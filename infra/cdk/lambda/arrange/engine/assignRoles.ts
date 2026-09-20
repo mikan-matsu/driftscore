@@ -178,13 +178,18 @@ export function assignRoles(
   const bassInstrument = pickBassInstrument(remaining);
   const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
 
+  const shift = melodyInstrument.melodyOctaveShift ?? 0;
+  const shiftedMelody: Melody = shift
+    ? { ...melody, notes: melody.notes.map((n) => ({ ...n, pitch: n.pitch + shift, pitches: n.pitches?.map((p) => p + shift) })) }
+    : melody;
+
   const melodyPart: ArrangementPart = {
     id: melodyInstrument.id,
     name: melodyInstrument.name,
     clef: melodyInstrument.clef,
     transposeSemitones: melodyInstrument.transposeSemitones,
     polyphonic: melodyInstrument.polyphonic,
-    melody: foldMelodyToRange(embellishMelody(melody, distortion, key), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
+    melody: foldMelodyToRange(embellishMelody(shiftedMelody, distortion, key), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
   };
   const ceilings = computeMelodyCeilings(chords, melodyPart.melody.notes, beatsPerBar);
 

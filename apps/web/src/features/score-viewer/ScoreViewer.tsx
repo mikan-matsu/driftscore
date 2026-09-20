@@ -2,7 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function ScoreViewer({ musicXml, title }: { musicXml: string; title?: string }) {
+/** Minimal surface of OSMD's cursor we need to drive playback sync, kept local so callers don't need the full OSMD type. */
+export interface ScoreCursor {
+  show(): void;
+  hide(): void;
+  reset(): void;
+  next(): void;
+  iterator: {
+    EndReached: boolean;
+    currentTimeStamp: { RealValue: number };
+  };
+}
+
+export function ScoreViewer({
+  musicXml,
+  title,
+  onCursorReady,
+}: {
+  musicXml: string;
+  title?: string;
+  onCursorReady?: (cursor: ScoreCursor | null) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,15 +40,18 @@ export function ScoreViewer({ musicXml, title }: { musicXml: string; title?: str
           autoResize: true,
           backend: "svg",
           drawTitle: Boolean(title),
+          cursorsOptions: [{ type: 1, color: "#60a5fa", alpha: 1, follow: true }],
         });
         await osmd.load(musicXml);
         if (cancelled) return;
         osmd.render();
         setError(null);
+        onCursorReady?.(osmd.cursor as ScoreCursor);
       } catch (e) {
         if (cancelled) return;
         console.error("ScoreViewer: failed to render score", e, musicXml);
         setError("楽譜の表示に失敗しました。もう一度生成し直してください。");
+        onCursorReady?.(null);
       }
     }
 
@@ -36,7 +59,9 @@ export function ScoreViewer({ musicXml, title }: { musicXml: string; title?: str
 
     return () => {
       cancelled = true;
+      onCursorReady?.(null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicXml, title]);
 
   return (

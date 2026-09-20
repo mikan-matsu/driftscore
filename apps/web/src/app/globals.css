@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Tailwind's preflight forces `img { height: auto }`, which collapses OpenSheetMusicDisplay's
+   playback cursor (an <img> sized via its `height` attribute) down to ~1px. Restore the
+   browser default so the cursor's actual height renders. */
+img[id^="cursorImg"] {
+  max-width: none !important;
+  z-index: 100 !important;
+}

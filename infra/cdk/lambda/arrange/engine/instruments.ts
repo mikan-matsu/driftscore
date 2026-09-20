@@ -11,6 +11,15 @@ export interface InstrumentDef {
   rangeHigh: number;
   polyphonic: boolean;
   roleAffinity: Role;
+  /**
+   * Fixed octave shift (in semitones) applied uniformly to the whole input
+   * melody before any per-note range-folding, so the melodic contour is
+   * never broken by folding some notes but not others. Only meant for
+   * generic placeholder instruments like "lead" that aren't tied to a real
+   * instrument's register — shifting a real instrument's range wouldn't be
+   * physically meaningful.
+   */
+  melodyOctaveShift?: number;
 }
 
 export const INSTRUMENTS: Record<string, InstrumentDef> = {
@@ -23,6 +32,7 @@ export const INSTRUMENTS: Record<string, InstrumentDef> = {
     rangeHigh: 96,
     polyphonic: false,
     roleAffinity: "melody",
+    melodyOctaveShift: 12,
   },
   piano: {
     id: "piano",

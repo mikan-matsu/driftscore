@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
-import { ScoreViewer, arrangementToMusicXml, type Arrangement } from "@/features/score-viewer";
-import { playArrangement, stopPlayback } from "@/features/playback";
+import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
+import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
 
 type Step = "pick" | "options" | "result";
 
@@ -17,6 +17,7 @@ export default function Home() {
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [cursor, setCursor] = useState<ScoreCursor | null>(null);
 
   function handleSelectSong(song: PresetSong) {
     setSelectedSong(song);
@@ -50,6 +51,7 @@ export default function Home() {
   }
 
   const BPM = 108;
+  useCursorSync(cursor, isPlaying, BPM);
 
   async function handleTogglePlay() {
     if (!arrangement) return;
@@ -121,6 +123,7 @@ export default function Home() {
                 <ScoreViewer
                   musicXml={arrangementToMusicXml(arrangement, selectedSong?.title)}
                   title={selectedSong?.title}
+                  onCursorReady={setCursor}
                 />
               </div>
             )}
