@@ -1,0 +1,22 @@
+# Node
+node_modules/
+.next/
+out/
+
+# AWS CDK
+cdk.out/
+*.d.ts
+*.js
+!jest.config.js
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
