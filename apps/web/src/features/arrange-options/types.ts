@@ -5,7 +5,26 @@ export interface ArrangeOptions {
   /** 0 = 忠実なアレンジ, 100 = 大胆に崩す */
   distortion: number;
   ensembleId: string;
+  /** Pitch class 0-11 to transpose the melody's tonic to, or null to keep the melody's own key (auto-detected). */
+  keyRoot: number | null;
 }
+
+/** Pitch-class labels for the key picker — major/minor isn't chosen here, it's
+ * auto-detected from the melody; this only picks which note the tonic moves to. */
+export const KEY_ROOTS: { id: number; label: string }[] = [
+  { id: 0, label: "C" },
+  { id: 1, label: "C#" },
+  { id: 2, label: "D" },
+  { id: 3, label: "D#" },
+  { id: 4, label: "E" },
+  { id: 5, label: "F" },
+  { id: 6, label: "F#" },
+  { id: 7, label: "G" },
+  { id: 8, label: "G#" },
+  { id: 9, label: "A" },
+  { id: 10, label: "A#" },
+  { id: 11, label: "B" },
+];
 
 export const GENRES: { id: Genre; label: string }[] = [
   { id: "jazz", label: "ジャズ" },

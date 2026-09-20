@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
@@ -13,11 +13,17 @@ const API_URL = process.env.NEXT_PUBLIC_ARRANGE_API_URL ?? "";
 export default function Home() {
   const [step, setStep] = useState<Step>("pick");
   const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
-  const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30, ensembleId: "pianoTrio" });
+  const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30, ensembleId: "pianoTrio", keyRoot: null });
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
+  // Guards against a slower, older /arrange request resolving after a newer
+  // one (e.g. the user reselects a song and regenerates before the first
+  // response lands) and overwriting the newer arrangement with stale data —
+  // selectedSong's title would already show the new song while the score
+  // underneath silently stayed on the old one.
+  const generationIdRef = useRef(0);
 
   function handleSelectSong(song: PresetSong) {
     setSelectedSong(song);
@@ -26,6 +32,7 @@ export default function Home() {
 
   async function handleGenerate() {
     if (!selectedSong || !API_URL) return;
+    const requestId = ++generationIdRef.current;
     stopPlayback();
     setIsPlaying(false);
     setStatus("loading");
@@ -39,13 +46,16 @@ export default function Home() {
           genre: options.genre,
           distortion: options.distortion,
           ensembleId: options.ensembleId,
+          keyRoot: options.keyRoot,
         }),
       });
       if (!res.ok) throw new Error(`arrange API returned ${res.status}`);
       const data = (await res.json()) as { arrangement: Arrangement };
+      if (requestId !== generationIdRef.current) return;
       setArrangement(data.arrangement);
       setStatus("done");
     } catch {
+      if (requestId !== generationIdRef.current) return;
       setStatus("error");
     }
   }

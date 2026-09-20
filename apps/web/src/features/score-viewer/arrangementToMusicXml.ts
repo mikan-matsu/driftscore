@@ -1,5 +1,6 @@
 import type { Melody, Note } from "@/features/piano-roll";
 import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol } from "./arrangementTypes";
+import { DRUM_DISPLAY } from "./percussionMap";
 
 const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
 const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
@@ -34,19 +35,49 @@ function pitchXml(pitch: number): string {
   return `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ""}<octave>${octave}</octave></pitch>`;
 }
 
-function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number): string {
+/** A drum's GM key number has no real pitch — resolve it to a fixed staff position + notehead instead. */
+function unpitchedXml(gmKey: number): { positionXml: string; noteheadXml: string } {
+  const display = DRUM_DISPLAY[gmKey] ?? { step: "C", octave: 5 };
+  return {
+    positionXml: `<unpitched><display-step>${display.step}</display-step><display-octave>${display.octave}</display-octave></unpitched>`,
+    noteheadXml: display.notehead ? `<notehead>${display.notehead}</notehead>` : "",
+  };
+}
+
+interface NoteXmlOptions {
+  isPercussion?: boolean;
+  /** MusicXML <voice> number — only meaningful when a part has more than one
+   * independent voice on the same staff (percussion's up/down split). */
+  voice?: number;
+  /** Forces stem direction — percussion notation convention: hihat/snare/toms
+   * up, kick down, independent of the notehead's vertical staff position. */
+  stem?: "up" | "down";
+}
+
+function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number, options: NoteXmlOptions = {}): string {
+  const { isPercussion = false, voice, stem } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
+  const voiceXml = voice ? `<voice>${voice}</voice>` : "";
+  const stemXml = stem ? `<stem>${stem}</stem>` : "";
   const pitches = note ? (note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch]) : [];
 
   if (pitches.length === 0) {
-    return `<note><rest/><duration>${duration}</duration><type>${type}</type>${dotXml}</note>`;
+    return `<note><rest/><duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`;
+  }
+  if (isPercussion) {
+    return pitches
+      .map((gmKey, i) => {
+        const { positionXml, noteheadXml } = unpitchedXml(gmKey);
+        return `<note>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}</note>`;
+      })
+      .join("");
   }
   return pitches
     .map(
       (pitch, i) =>
-        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration><type>${type}</type>${dotXml}</note>`,
+        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`,
     )
     .join("");
 }
@@ -64,7 +95,8 @@ function harmonyXml(chord: ChordSymbol): string {
   return `<harmony><root>${rootXml}</root>${KIND_XML[chord.quality]}</harmony>`;
 }
 
-function clefXml(clef: "treble" | "bass"): string {
+function clefXml(clef: "treble" | "bass" | "percussion"): string {
+  if (clef === "percussion") return "<clef><sign>percussion</sign><line>2</line></clef>";
   return clef === "bass" ? "<clef><sign>F</sign><line>4</line></clef>" : "<clef><sign>G</sign><line>2</line></clef>";
 }
 
@@ -74,7 +106,7 @@ function transposeXml(transposeSemitones: number): string {
   return `<transpose><chromatic>${-transposeSemitones}</chromatic></transpose>`;
 }
 
-function melodyToMeasures(melody: Melody, transposeSemitones = 0): string[][] {
+function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteXmlOptions = {}): string[][] {
   const beatsPerBar = melody.beatsPerBar;
   const sorted = [...melody.notes].sort((a, b) => a.start - b.start);
   const measures: string[][] = [[]];
@@ -85,7 +117,7 @@ function melodyToMeasures(melody: Melody, transposeSemitones = 0): string[][] {
     while (remaining > 0) {
       const roomLeft = beatsPerBar - measureBeats;
       const chunk = Math.min(remaining, roomLeft);
-      measures[measures.length - 1].push(noteXml(chunk, note, transposeSemitones));
+      measures[measures.length - 1].push(noteXml(chunk, note, transposeSemitones, options));
       measureBeats += chunk;
       remaining -= chunk;
       if (measureBeats >= beatsPerBar) {
@@ -110,7 +142,7 @@ function melodyToMeasures(melody: Melody, transposeSemitones = 0): string[][] {
     measures.pop();
   }
   if (measures.length === 0) {
-    measures.push([noteXml(beatsPerBar, null, transposeSemitones)]);
+    measures.push([noteXml(beatsPerBar, null, transposeSemitones, options)]);
   }
   return measures;
 }
@@ -121,10 +153,26 @@ function partMeasuresXml(
   measureCount: number,
   chordsPerMeasure?: ChordSymbol[],
 ): string {
-  const measures = melodyToMeasures(part.melody, part.transposeSemitones);
+  const isPercussion = part.clef === "percussion";
+  const hasSecondVoice = !!part.secondaryVoice;
+  const primaryOptions: NoteXmlOptions = isPercussion
+    ? { isPercussion: true, voice: 1, stem: "up" }
+    : {};
+  const measures = melodyToMeasures(part.melody, part.transposeSemitones, primaryOptions);
   while (measures.length < measureCount) {
-    measures.push([noteXml(beatsPerBar, null, part.transposeSemitones)]);
+    measures.push([noteXml(beatsPerBar, null, part.transposeSemitones, primaryOptions)]);
   }
+
+  let secondMeasures: string[][] = [];
+  if (part.secondaryVoice) {
+    const secondaryOptions: NoteXmlOptions = { isPercussion: true, voice: 2, stem: "down" };
+    secondMeasures = melodyToMeasures(part.secondaryVoice, part.transposeSemitones, secondaryOptions);
+    while (secondMeasures.length < measureCount) {
+      secondMeasures.push([noteXml(beatsPerBar, null, part.transposeSemitones, secondaryOptions)]);
+    }
+  }
+
+  const backupXml = hasSecondVoice ? `<backup><duration>${Math.round(beatsPerBar * DIVISIONS)}</duration></backup>` : "";
 
   return measures
     .map((notesXml, i) => {
@@ -133,7 +181,8 @@ function partMeasuresXml(
           ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}${transposeXml(part.transposeSemitones)}</attributes>`
           : "";
       const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
-      return `<measure number="${i + 1}">${attrs}${harmony}${notesXml.join("")}</measure>`;
+      const secondVoiceXml = hasSecondVoice ? backupXml + (secondMeasures[i]?.join("") ?? "") : "";
+      return `<measure number="${i + 1}">${attrs}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
     })
     .join("");
 }

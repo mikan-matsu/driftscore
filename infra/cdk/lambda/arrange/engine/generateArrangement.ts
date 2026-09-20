@@ -3,22 +3,61 @@ import { estimateChordProgression } from "./chordProgression";
 import { assignRoles } from "./assignRoles";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
 import { applySwing } from "./swing";
-import type { Arrangement, Genre, Melody } from "./types";
+import { renderDrumPart } from "./drums";
+import type { Arrangement, ArrangementPart, Genre, Melody } from "./types";
+
+/**
+ * Shifts every note by the smallest signed semitone distance that moves the
+ * melody's tonic onto `targetRoot` (range -5..+6), rather than always
+ * transposing upward — an upward-only shift could move a low melody up to
+ * nearly two octaves for what's musically just a semitone away in the other
+ * direction.
+ */
+function transposeMelody(melody: Melody, fromRoot: number, targetRoot: number): Melody {
+  const shift = (((targetRoot - fromRoot + 6) % 12) + 12) % 12 - 6;
+  if (shift === 0) return melody;
+  return {
+    ...melody,
+    notes: melody.notes.map((n) => ({
+      ...n,
+      pitch: n.pitch + shift,
+      pitches: n.pitches?.map((p) => p + shift),
+    })),
+  };
+}
 
 export function generateArrangement(
-  melody: Melody,
+  inputMelody: Melody,
   genre: Genre,
   distortion: number,
   ensembleId: string = DEFAULT_ENSEMBLE_ID,
+  targetKeyRoot?: number | null,
 ): Arrangement {
   const preset = ENSEMBLE_PRESETS[ensembleId] ?? ENSEMBLE_PRESETS[DEFAULT_ENSEMBLE_ID];
-  const key = estimateKey(melody);
+  const detectedKey = estimateKey(inputMelody);
+  const hasTargetKey = typeof targetKeyRoot === "number" && targetKeyRoot !== detectedKey.root;
+  const melody = hasTargetKey ? transposeMelody(inputMelody, detectedKey.root, targetKeyRoot) : inputMelody;
+  const key = hasTargetKey ? { root: targetKeyRoot, isMinor: detectedKey.isMinor } : detectedKey;
   const chords = estimateChordProgression(melody, key);
   const beatsPerBar = melody.beatsPerBar;
 
   let parts = assignRoles(melody, chords, genre, distortion, preset.instruments, key);
   if (genre === "jazz") {
     parts = parts.map((part) => ({ ...part, melody: { ...part.melody, notes: applySwing(part.melody.notes) } }));
+  }
+
+  const drumVoices = renderDrumPart(chords, genre, beatsPerBar);
+  if (drumVoices) {
+    const drumPart: ArrangementPart = {
+      id: "drums",
+      name: "Drums",
+      clef: "percussion",
+      transposeSemitones: 0,
+      polyphonic: true,
+      melody: { beatsPerBar, notes: drumVoices.up },
+      secondaryVoice: { beatsPerBar, notes: drumVoices.down },
+    };
+    parts = [...parts, drumPart];
   }
 
   return {

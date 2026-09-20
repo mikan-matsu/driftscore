@@ -53,7 +53,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "twinkle-twinkle",
     title: "きらきら星",
-    attribution: "伝承曲(フランス民謡)・パブリックドメイン",
+    attribution: "伝承曲(フランス民謡)",
     melody: repeatMelody(
       {
         beatsPerBar: 4,
@@ -80,7 +80,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "frere-jacques",
     title: "かえるのうた",
-    attribution: "伝承曲(フランス民謡)・パブリックドメイン",
+    attribution: "伝承曲(フランス民謡)",
     melody: {
       beatsPerBar: 4,
       notes: notes([
@@ -122,7 +122,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "chocho",
     title: "ちょうちょ",
-    attribution: "伝承曲(ヨーロッパ民謡)・パブリックドメイン",
+    attribution: "伝承曲(ヨーロッパ民謡)",
     melody: repeatMelody(
       {
         beatsPerBar: 4,
@@ -148,7 +148,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "london-bridge",
     title: "ロンドン橋",
-    attribution: "伝承曲(イギリス民謡)・パブリックドメイン",
+    attribution: "伝承曲(イギリス民謡)",
     melody: repeatMelody(
       {
         beatsPerBar: 4,
@@ -175,7 +175,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "mary-had-a-little-lamb",
     title: "メリーさんのひつじ",
-    attribution: "伝承曲(アメリカ民謡)・パブリックドメイン",
+    attribution: "伝承曲(アメリカ民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [2, 1], [1, 1], [0, 1], [1, 1], [2, 1], [2, 1], [2, 2],
       [1, 1], [1, 1], [1, 2], [2, 1], [4, 1], [4, 2],
@@ -184,7 +184,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "musunde-hiraite",
     title: "むすんでひらいて",
-    attribution: "作曲:J.J.ルソー(1712-1778)・パブリックドメイン",
+    attribution: "作曲:J.J.ルソー(1712-1778)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 2], [0, 1], [2, 1], [4, 2],
       [7, 1], [7, 1], [6, 1], [4, 1], [2, 1], [0, 2],
@@ -193,7 +193,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "auld-lang-syne",
     title: "蛍の光",
-    attribution: "伝承曲(スコットランド民謡)・パブリックドメイン",
+    attribution: "伝承曲(スコットランド民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [0, 1], [2, 1], [0, 1], [4, 1], [5, 2],
       [4, 1], [4, 1], [2, 1], [0, 1], [2, 1], [0, 2],
@@ -202,7 +202,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "greensleeves",
     title: "グリーンスリーブス",
-    attribution: "伝承曲(イギリス民謡・16世紀)・パブリックドメイン",
+    attribution: "伝承曲(イギリス民謡・16世紀)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [3, 1], [5, 2], [4, 1], [3, 1],
       [1, 2], [0, 1], [1, 1], [2, 1], [0, 2],
@@ -211,7 +211,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "scarborough-fair",
     title: "スカボローフェア",
-    attribution: "伝承曲(イギリス民謡)・パブリックドメイン",
+    attribution: "伝承曲(イギリス民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 2], [3, 1], [2, 1], [0, 2], [2, 1], [4, 1],
       [3, 2], [1, 1], [2, 1], [0, 4],
@@ -220,7 +220,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "michael-row-the-boat-ashore",
     title: "こげよマイケル",
-    attribution: "伝承曲(アメリカ伝承霊歌)・パブリックドメイン",
+    attribution: "伝承曲(アメリカ伝承霊歌)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 1], [4, 1], [5, 2], [4, 2],
       [2, 1], [0, 1], [2, 1], [0, 4],
@@ -229,7 +229,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "kojo-no-tsuki",
     title: "荒城の月",
-    attribution: "作曲:滝廉太郎(1879-1903)・パブリックドメイン",
+    attribution: "作曲:滝廉太郎(1879-1903)",
     melody: repeatMelody(melodyFromDegrees(57, 4, [
       [0, 2], [3, 1], [5, 1], [7, 2], [5, 1], [3, 1],
       [1, 2], [0, 1], [2, 1], [0, 4],
@@ -238,7 +238,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "hana",
     title: "花(春のうららの)",
-    attribution: "作曲:滝廉太郎(1879-1903)・パブリックドメイン",
+    attribution: "作曲:滝廉太郎(1879-1903)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [2, 1], [4, 1], [5, 1], [7, 1], [7, 1], [5, 1], [4, 2],
       [2, 1], [4, 1], [2, 1], [0, 2], [0, 2],
@@ -247,7 +247,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "furusato",
     title: "故郷(ふるさと)",
-    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    attribution: "作曲:岡野貞一(1878-1941)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
       [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
@@ -256,7 +256,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "haru-ga-kita",
     title: "春が来た",
-    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    attribution: "作曲:岡野貞一(1878-1941)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 1], [5, 1], [7, 2], [4, 1], [5, 1], [7, 2],
       [7, 1], [9, 1], [7, 1], [5, 1], [4, 4],
@@ -265,7 +265,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "oborozukiyo",
     title: "朧月夜",
-    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    attribution: "作曲:岡野貞一(1878-1941)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [2, 1], [4, 1], [5, 2], [4, 1], [2, 1], [0, 2],
       [2, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
@@ -274,7 +274,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "haru-no-ogawa",
     title: "春の小川",
-    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    attribution: "作曲:岡野貞一(1878-1941)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 1], [5, 1], [4, 1], [2, 2],
       [4, 1], [5, 1], [7, 1], [5, 1], [4, 1], [2, 2],
@@ -283,7 +283,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "hamabe-no-uta",
     title: "浜辺の歌",
-    attribution: "作曲:成田為三(1893-1945)・パブリックドメイン",
+    attribution: "作曲:成田為三(1893-1945)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 2], [5, 1], [4, 1], [2, 2], [0, 1], [2, 1],
       [4, 2], [2, 1], [0, 1], [0, 4],
@@ -292,7 +292,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "soshunfu",
     title: "早春賦",
-    attribution: "作曲:中田章(1886-1931)・パブリックドメイン",
+    attribution: "作曲:中田章(1886-1931)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 1], [2, 2],
       [4, 1], [5, 1], [7, 1], [5, 1], [4, 4],
@@ -301,7 +301,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "hanyu-no-yado",
     title: "埴生の宿",
-    attribution: "作曲:ヘンリー・ビショップ(英, 1786-1855)・パブリックドメイン",
+    attribution: "作曲:ヘンリー・ビショップ(英, 1786-1855)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 2], [2, 1], [4, 1], [5, 2], [4, 2],
       [2, 1], [0, 1], [0, 4],
@@ -310,7 +310,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "ryoshu",
     title: "旅愁",
-    attribution: "作曲:J.P.オードウェイ(米, 1824-1880)・パブリックドメイン",
+    attribution: "作曲:J.P.オードウェイ(米, 1824-1880)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 1], [2, 1], [0, 2], [2, 1], [4, 1], [5, 2],
       [4, 1], [2, 1], [0, 4],
@@ -319,7 +319,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "sakura-sakura",
     title: "さくらさくら",
-    attribution: "伝承曲(江戸期・作者不詳)・パブリックドメイン",
+    attribution: "伝承曲(江戸期・作者不詳)",
     melody: repeatMelody(melodyFromDegrees(62, 4, [
       [0, 1], [0, 1], [2, 2], [0, 1], [0, 1], [2, 2],
       [0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [0, 3],
@@ -328,7 +328,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "kagome-kagome",
     title: "かごめかごめ",
-    attribution: "伝承わらべうた・パブリックドメイン",
+    attribution: "伝承わらべうた",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [2, 1], [2, 1], [0, 1], [2, 1], [4, 1], [2, 2],
       [0, 1], [2, 1], [0, 4],
@@ -337,7 +337,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "toryanse",
     title: "通りゃんせ",
-    attribution: "伝承わらべうた・パブリックドメイン",
+    attribution: "伝承わらべうた",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [0, 1], [2, 1], [4, 2], [2, 1], [0, 1],
       [2, 1], [0, 4],
@@ -346,7 +346,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "antagata-dokosa",
     title: "あんたがたどこさ",
-    attribution: "伝承わらべうた(熊本)・パブリックドメイン",
+    attribution: "伝承わらべうた(熊本)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 1], [4, 1], [2, 1], [4, 1], [5, 1], [4, 1], [2, 2],
       [0, 1], [2, 1], [4, 1], [2, 4],
@@ -355,7 +355,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "zui-zui-zukkorobashi",
     title: "ずいずいずっころばし",
-    attribution: "伝承わらべうた・パブリックドメイン",
+    attribution: "伝承わらべうた",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [0, 1], [2, 1], [0, 1], [0, 1], [2, 1], [4, 2],
       [2, 1], [0, 1], [2, 1], [0, 4],
@@ -364,7 +364,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "soran-bushi",
     title: "ソーラン節",
-    attribution: "伝承曲(北海道民謡)・パブリックドメイン",
+    attribution: "伝承曲(北海道民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 2], [5, 1], [4, 1], [2, 2],
       [4, 1], [5, 1], [7, 1], [5, 1], [4, 4],
@@ -373,7 +373,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "tanchame",
     title: "谷茶前(沖縄)",
-    attribution: "伝承曲(沖縄民謡・1726年記録あり)・パブリックドメイン",
+    attribution: "伝承曲(沖縄民謡・1726年記録あり)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2],
       [5, 1], [4, 1], [2, 1], [0, 1], [2, 4],
@@ -382,7 +382,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "tanko-bushi",
     title: "炭坑節",
-    attribution: "伝承曲(福岡民謡)・パブリックドメイン",
+    attribution: "伝承曲(福岡民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [0, 1], [2, 1], [4, 1], [2, 1], [0, 2],
       [4, 1], [4, 1], [2, 1], [0, 1], [2, 4],
@@ -391,7 +391,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "sado-okesa",
     title: "佐渡おけさ",
-    attribution: "伝承曲(新潟民謡)・パブリックドメイン",
+    attribution: "伝承曲(新潟民謡)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [4, 2], [2, 1], [0, 1], [2, 2], [4, 1], [5, 1],
       [4, 2], [2, 1], [0, 4],
@@ -400,7 +400,7 @@ export const PRESET_SONGS: PresetSong[] = [
   {
     id: "kokiriko-bushi",
     title: "こきりこ節",
-    attribution: "伝承曲(富山民謡・日本最古級)・パブリックドメイン",
+    attribution: "伝承曲(富山民謡・日本最古級)",
     melody: repeatMelody(melodyFromDegrees(60, 4, [
       [0, 1], [2, 1], [4, 1], [5, 1], [4, 2], [2, 2],
       [0, 1], [2, 1], [0, 4],

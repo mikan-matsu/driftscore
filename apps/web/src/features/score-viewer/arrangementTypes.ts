@@ -11,10 +11,14 @@ export interface ChordSymbol {
 export interface ArrangementPart {
   id: string;
   name: string;
-  clef: "treble" | "bass";
+  clef: "treble" | "bass" | "percussion";
   transposeSemitones: number;
   polyphonic: boolean;
   melody: Melody;
+  /** A second, independent rhythmic voice on the same staff — percussion only:
+   * `melody` carries the up-stem voice (hihat/snare/toms), this carries the
+   * down-stem voice (kick), the standard convention for drum notation. */
+  secondaryVoice?: Melody;
 }
 
 export interface Arrangement {

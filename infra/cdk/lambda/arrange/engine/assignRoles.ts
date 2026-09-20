@@ -27,6 +27,46 @@ function foldMelodyToRange(melody: Melody, low: number, high: number): Melody {
 }
 
 /**
+ * Picks a single whole-octave shift for the whole melody phrase — rather
+ * than range-folding note by note, which can break a melody's contour by
+ * shifting some notes but not others once it nears the range boundary — so
+ * it lands as close as possible to the instrument's idiomatic register
+ * (`idiomaticLow`/`idiomaticHigh`), not just anywhere it technically fits.
+ * A flute part sitting at the very bottom of its technical range is
+ * "playable" but not how a real arranger would voice it; see instruments.ts.
+ * Falls back to centering on the full technical range when no idiomatic
+ * band is defined for the instrument.
+ */
+function pickIdiomaticOctaveShift(melody: Melody, instrument: InstrumentDef): number {
+  if (melody.notes.length === 0) return 0;
+  const targetLow = instrument.idiomaticLow ?? instrument.rangeLow;
+  const targetHigh = instrument.idiomaticHigh ?? instrument.rangeHigh;
+  const targetCenter = (targetLow + targetHigh) / 2;
+
+  const pitches = melody.notes.map((n) => n.pitch).sort((a, b) => a - b);
+  const median = pitches[Math.floor(pitches.length / 2)];
+
+  let bestShift = 0;
+  let bestScore = Infinity;
+  for (let octaves = -4; octaves <= 4; octaves++) {
+    const shift = octaves * 12;
+    const outOfTechnicalRange = melody.notes.filter((n) => {
+      const p = n.pitch + shift;
+      return p < instrument.rangeLow || p > instrument.rangeHigh;
+    }).length;
+    // Staying within the instrument's technically-playable range always wins
+    // over getting closer to the idiomatic center — the idiomatic band is a
+    // preference within what's playable, not a license to go out of range.
+    const score = outOfTechnicalRange * 1000 + Math.abs(median + shift - targetCenter);
+    if (score < bestScore) {
+      bestScore = score;
+      bestShift = shift;
+    }
+  }
+  return bestShift;
+}
+
+/**
  * The standard comping technique is to voice accompaniment in the register
  * immediately below the melody, not in some independently-chosen register —
  * see e.g. jazz comping voice-leading practice. This computes, per bar, the
@@ -178,7 +218,7 @@ export function assignRoles(
   const bassInstrument = pickBassInstrument(remaining);
   const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
 
-  const shift = melodyInstrument.melodyOctaveShift ?? 0;
+  const shift = pickIdiomaticOctaveShift(melody, melodyInstrument);
   const shiftedMelody: Melody = shift
     ? { ...melody, notes: melody.notes.map((n) => ({ ...n, pitch: n.pitch + shift, pitches: n.pitches?.map((p) => p + shift) })) }
     : melody;

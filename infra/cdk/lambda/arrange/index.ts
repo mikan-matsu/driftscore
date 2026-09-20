@@ -10,6 +10,8 @@ interface RequestBody {
   genre?: string;
   distortion?: number;
   ensembleId?: string;
+  /** Pitch class 0-11 to transpose the melody's tonic to, or omitted/null to keep its own key. */
+  keyRoot?: number | null;
 }
 
 function isValidMelody(melody: unknown): melody is Melody {
@@ -32,8 +34,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const genre = GENRES.includes(body.genre as Genre) ? (body.genre as Genre) : "jazz";
   const distortion = typeof body.distortion === "number" ? body.distortion : 30;
   const ensembleId = body.ensembleId && ENSEMBLE_PRESETS[body.ensembleId] ? body.ensembleId : DEFAULT_ENSEMBLE_ID;
+  const keyRoot =
+    typeof body.keyRoot === "number" && Number.isInteger(body.keyRoot) && body.keyRoot >= 0 && body.keyRoot <= 11
+      ? body.keyRoot
+      : null;
 
-  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId);
+  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId, keyRoot);
 
   return {
     statusCode: 200,
