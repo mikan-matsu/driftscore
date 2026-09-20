@@ -15,7 +15,7 @@ export const ENSEMBLE_PRESETS: Record<string, EnsemblePreset> = {
   woodwindQuartet: {
     id: "woodwindQuartet",
     name: "Woodwind Quartet",
-    instruments: [INSTRUMENTS.clarinetBb, INSTRUMENTS.trumpetBb, INSTRUMENTS.hornF, INSTRUMENTS.bassoon],
+    instruments: [INSTRUMENTS.flute, INSTRUMENTS.oboe, INSTRUMENTS.clarinetBb, INSTRUMENTS.bassoon],
   },
   clarinetGuitarBass: {
     id: "clarinetGuitarBass",

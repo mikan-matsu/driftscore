@@ -2,6 +2,7 @@ import { estimateKey } from "./keyEstimation";
 import { estimateChordProgression } from "./chordProgression";
 import { assignRoles } from "./assignRoles";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
+import { applySwing } from "./swing";
 import type { Arrangement, Genre, Melody } from "./types";
 
 export function generateArrangement(
@@ -15,7 +16,10 @@ export function generateArrangement(
   const chords = estimateChordProgression(melody, key);
   const beatsPerBar = melody.beatsPerBar;
 
-  const parts = assignRoles(melody, chords, genre, distortion, preset.instruments);
+  let parts = assignRoles(melody, chords, genre, distortion, preset.instruments, key);
+  if (genre === "jazz") {
+    parts = parts.map((part) => ({ ...part, melody: { ...part.melody, notes: applySwing(part.melody.notes) } }));
+  }
 
   return {
     genre,

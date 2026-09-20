@@ -2,6 +2,7 @@ import { triadPitchClasses } from "./chordProgression";
 import { embellishMelody } from "./embellishMelody";
 import { STYLES, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
+import type { EstimatedKey } from "./keyEstimation";
 import type { ArrangementPart, ChordSymbol, Genre, Melody, Note } from "./types";
 
 /** Shifts a pitch by octaves until it lies within [low, high]. */
@@ -91,6 +92,7 @@ export function assignRoles(
   genre: Genre,
   distortion: number,
   ensemble: InstrumentDef[],
+  key: EstimatedKey,
 ): ArrangementPart[] {
   const beatsPerBar = melody.beatsPerBar;
   const melodyInstrument = pickMelodyInstrument(ensemble);
@@ -106,7 +108,7 @@ export function assignRoles(
     clef: melodyInstrument.clef,
     transposeSemitones: melodyInstrument.transposeSemitones,
     polyphonic: melodyInstrument.polyphonic,
-    melody: foldMelodyToRange(embellishMelody(melody, distortion), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
+    melody: foldMelodyToRange(embellishMelody(melody, distortion, key), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
   });
 
   if (bassInstrument) {

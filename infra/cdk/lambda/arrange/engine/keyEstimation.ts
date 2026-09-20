@@ -9,6 +9,11 @@ export interface EstimatedKey {
   isMinor: boolean;
 }
 
+export function scalePitchClasses(key: EstimatedKey): Set<number> {
+  const intervals = key.isMinor ? MINOR_INTERVALS : MAJOR_INTERVALS;
+  return new Set(intervals.map((iv) => (key.root + iv) % 12));
+}
+
 /**
  * Simplified key estimation: scores each of the 24 major/minor keys by how
  * much note duration falls on in-scale pitch classes (with a penalty for

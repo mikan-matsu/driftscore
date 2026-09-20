@@ -44,6 +44,26 @@ export const INSTRUMENTS: Record<string, InstrumentDef> = {
     polyphonic: false,
     roleAffinity: "bass",
   },
+  flute: {
+    id: "flute",
+    name: "Flute",
+    clef: "treble",
+    transposeSemitones: 0,
+    rangeLow: 60, // C4 sounding
+    rangeHigh: 96, // C7 sounding
+    polyphonic: false,
+    roleAffinity: "melody",
+  },
+  oboe: {
+    id: "oboe",
+    name: "Oboe",
+    clef: "treble",
+    transposeSemitones: 0,
+    rangeLow: 58, // Bb3 sounding
+    rangeHigh: 91, // G6 sounding
+    polyphonic: false,
+    roleAffinity: "harmony",
+  },
   clarinetBb: {
     id: "clarinetBb",
     name: "Clarinet in B♭",
