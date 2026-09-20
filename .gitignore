@@ -20,3 +20,6 @@ cdk.out/
 # IDE
 .vscode/
 .idea/
+
+# Non-public project docs (requirements/strategy — local only)
+/CLAUDE.md
