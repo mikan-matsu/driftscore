@@ -1,4 +1,4 @@
-import type { Note } from "@/features/piano-roll";
+import type { Note, Melody } from "@/features/piano-roll";
 import type { PresetSong } from "./types";
 
 function notes(spec: [pitch: number, start: number, duration: number][]): Note[] {
@@ -9,6 +9,30 @@ function notes(spec: [pitch: number, start: number, duration: number][]): Note[]
     duration,
     velocity: 100,
   }));
+}
+
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * Simplified placeholder melody from scale-degree steps (0=root, 7=root+octave, ...).
+ * Not a verified transcription of the original tune — real arrangement engine
+ * will need accurate MusicXML/MIDI source data later.
+ */
+function melodyFromDegrees(
+  root: number,
+  beatsPerBar: number,
+  steps: [degree: number, duration: number][],
+): Melody {
+  let t = 0;
+  const ns: Note[] = steps.map(([degree, duration], i) => {
+    const octave = Math.floor(degree / 7);
+    const idx = ((degree % 7) + 7) % 7;
+    const pitch = root + octave * 12 + MAJOR_SCALE[idx];
+    const note: Note = { id: `n${i}`, pitch, start: t, duration, velocity: 100 };
+    t += duration;
+    return note;
+  });
+  return { beatsPerBar, notes: ns };
 }
 
 export const PRESET_SONGS: PresetSong[] = [
@@ -106,5 +130,239 @@ export const PRESET_SONGS: PresetSong[] = [
         [60, 15, 1],
       ]),
     },
+  },
+  {
+    id: "mary-had-a-little-lamb",
+    title: "メリーさんのひつじ",
+    attribution: "伝承曲(アメリカ民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [2, 1], [1, 1], [0, 1], [1, 1], [2, 1], [2, 1], [2, 2],
+      [1, 1], [1, 1], [1, 2], [2, 1], [4, 1], [4, 2],
+    ]),
+  },
+  {
+    id: "musunde-hiraite",
+    title: "むすんでひらいて",
+    attribution: "作曲:J.J.ルソー(1712-1778)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 2], [0, 1], [2, 1], [4, 2],
+      [7, 1], [7, 1], [6, 1], [4, 1], [2, 1], [0, 2],
+    ]),
+  },
+  {
+    id: "auld-lang-syne",
+    title: "蛍の光",
+    attribution: "伝承曲(スコットランド民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [0, 1], [2, 1], [0, 1], [4, 1], [5, 2],
+      [4, 1], [4, 1], [2, 1], [0, 1], [2, 1], [0, 2],
+    ]),
+  },
+  {
+    id: "greensleeves",
+    title: "グリーンスリーブス",
+    attribution: "伝承曲(イギリス民謡・16世紀)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [3, 1], [5, 2], [4, 1], [3, 1],
+      [1, 2], [0, 1], [1, 1], [2, 1], [0, 2],
+    ]),
+  },
+  {
+    id: "scarborough-fair",
+    title: "スカボローフェア",
+    attribution: "伝承曲(イギリス民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 2], [3, 1], [2, 1], [0, 2], [2, 1], [4, 1],
+      [3, 2], [1, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "michael-row-the-boat-ashore",
+    title: "こげよマイケル",
+    attribution: "伝承曲(アメリカ伝承霊歌)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 1], [4, 1], [5, 2], [4, 2],
+      [2, 1], [0, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "kojo-no-tsuki",
+    title: "荒城の月",
+    attribution: "作曲:滝廉太郎(1879-1903)・パブリックドメイン",
+    melody: melodyFromDegrees(57, 4, [
+      [0, 2], [3, 1], [5, 1], [7, 2], [5, 1], [3, 1],
+      [1, 2], [0, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "hana",
+    title: "花(春のうららの)",
+    attribution: "作曲:滝廉太郎(1879-1903)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [2, 1], [4, 1], [5, 1], [7, 1], [7, 1], [5, 1], [4, 2],
+      [2, 1], [4, 1], [2, 1], [0, 2], [0, 2],
+    ]),
+  },
+  {
+    id: "furusato",
+    title: "故郷(ふるさと)",
+    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
+      [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
+    ]),
+  },
+  {
+    id: "haru-ga-kita",
+    title: "春が来た",
+    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 1], [5, 1], [7, 2], [4, 1], [5, 1], [7, 2],
+      [7, 1], [9, 1], [7, 1], [5, 1], [4, 4],
+    ]),
+  },
+  {
+    id: "oborozukiyo",
+    title: "朧月夜",
+    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [2, 1], [4, 1], [5, 2], [4, 1], [2, 1], [0, 2],
+      [2, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 2],
+    ]),
+  },
+  {
+    id: "haru-no-ogawa",
+    title: "春の小川",
+    attribution: "作曲:岡野貞一(1878-1941)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 1], [5, 1], [4, 1], [2, 2],
+      [4, 1], [5, 1], [7, 1], [5, 1], [4, 1], [2, 2],
+    ]),
+  },
+  {
+    id: "hamabe-no-uta",
+    title: "浜辺の歌",
+    attribution: "作曲:成田為三(1893-1945)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 2], [5, 1], [4, 1], [2, 2], [0, 1], [2, 1],
+      [4, 2], [2, 1], [0, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "soshunfu",
+    title: "早春賦",
+    attribution: "作曲:中田章(1886-1931)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 1], [4, 1], [5, 1], [4, 1], [2, 1], [0, 1], [2, 2],
+      [4, 1], [5, 1], [7, 1], [5, 1], [4, 4],
+    ]),
+  },
+  {
+    id: "hanyu-no-yado",
+    title: "埴生の宿",
+    attribution: "作曲:ヘンリー・ビショップ(英, 1786-1855)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 2], [2, 1], [4, 1], [5, 2], [4, 2],
+      [2, 1], [0, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "ryoshu",
+    title: "旅愁",
+    attribution: "作曲:J.P.オードウェイ(米, 1824-1880)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 1], [2, 1], [0, 2], [2, 1], [4, 1], [5, 2],
+      [4, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "sakura-sakura",
+    title: "さくらさくら",
+    attribution: "伝承曲(江戸期・作者不詳)・パブリックドメイン",
+    melody: melodyFromDegrees(62, 4, [
+      [0, 1], [0, 1], [2, 2], [0, 1], [0, 1], [2, 2],
+      [0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [0, 3],
+    ]),
+  },
+  {
+    id: "kagome-kagome",
+    title: "かごめかごめ",
+    attribution: "伝承わらべうた・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [2, 1], [2, 1], [0, 1], [2, 1], [4, 1], [2, 2],
+      [0, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "toryanse",
+    title: "通りゃんせ",
+    attribution: "伝承わらべうた・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [0, 1], [2, 1], [4, 2], [2, 1], [0, 1],
+      [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "antagata-dokosa",
+    title: "あんたがたどこさ",
+    attribution: "伝承わらべうた(熊本)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 1], [4, 1], [2, 1], [4, 1], [5, 1], [4, 1], [2, 2],
+      [0, 1], [2, 1], [4, 1], [2, 4],
+    ]),
+  },
+  {
+    id: "zui-zui-zukkorobashi",
+    title: "ずいずいずっころばし",
+    attribution: "伝承わらべうた・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [0, 1], [2, 1], [0, 1], [0, 1], [2, 1], [4, 2],
+      [2, 1], [0, 1], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "soran-bushi",
+    title: "ソーラン節",
+    attribution: "伝承曲(北海道民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 2], [5, 1], [4, 1], [2, 2],
+      [4, 1], [5, 1], [7, 1], [5, 1], [4, 4],
+    ]),
+  },
+  {
+    id: "tanchame",
+    title: "谷茶前(沖縄)",
+    attribution: "伝承曲(沖縄民謡・1726年記録あり)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2],
+      [5, 1], [4, 1], [2, 1], [0, 1], [2, 4],
+    ]),
+  },
+  {
+    id: "tanko-bushi",
+    title: "炭坑節",
+    attribution: "伝承曲(福岡民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [0, 1], [2, 1], [4, 1], [2, 1], [0, 2],
+      [4, 1], [4, 1], [2, 1], [0, 1], [2, 4],
+    ]),
+  },
+  {
+    id: "sado-okesa",
+    title: "佐渡おけさ",
+    attribution: "伝承曲(新潟民謡)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [4, 2], [2, 1], [0, 1], [2, 2], [4, 1], [5, 1],
+      [4, 2], [2, 1], [0, 4],
+    ]),
+  },
+  {
+    id: "kokiriko-bushi",
+    title: "こきりこ節",
+    attribution: "伝承曲(富山民謡・日本最古級)・パブリックドメイン",
+    melody: melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 1], [5, 1], [4, 2], [2, 2],
+      [0, 1], [2, 1], [0, 4],
+    ]),
   },
 ];

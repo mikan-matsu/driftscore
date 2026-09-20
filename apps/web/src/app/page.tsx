@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
-import { PianoRoll } from "@/features/piano-roll";
 import type { Melody } from "@/features/piano-roll";
 
 type Step = "pick" | "options" | "result";
@@ -15,7 +14,6 @@ export default function Home() {
   const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
   const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30 });
   const [resultMelody, setResultMelody] = useState<Melody | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
 
   function handleSelectSong(song: PresetSong) {
@@ -88,18 +86,8 @@ export default function Home() {
             {status === "done" && resultMelody && (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                  アレンジ生成エンジンは準備中のため、今は選んだメロディーをそのまま表示しています。
+                  アレンジ生成エンジンと五線譜表示は準備中です。もうしばらくお待ちください。
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing((v) => !v)}
-                  className="self-start rounded-full border border-neutral-300 dark:border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900"
-                >
-                  {isEditing ? "楽譜編集を閉じる" : "楽譜を編集する"}
-                </button>
-                {isEditing && (
-                  <PianoRoll melody={resultMelody} onChange={setResultMelody} />
-                )}
               </div>
             )}
           </section>
