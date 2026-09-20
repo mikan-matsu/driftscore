@@ -4,7 +4,7 @@ import type { ChordSymbol, Genre, Note } from "./types";
 interface BarEvent {
   offset: number;
   duration: number;
-  /** Scale index into the chord's [root, third, fifth, seventh] tones, or "root" shorthand */
+  /** Index into the chord's [root, third, fifth, (seventh)] tone stack */
   tones: number[];
 }
 
@@ -12,61 +12,124 @@ interface GenreStyle {
   chordOctaveBase: number;
   bassOctaveBase: number;
   useSeventh: boolean;
-  chordPattern: BarEvent[];
-  bassPattern: BarEvent[];
+  /** Multiple rhythm variants, cycled bar-by-bar so comping doesn't repeat identically */
+  chordPatterns: BarEvent[][];
+  bassPatterns: BarEvent[][];
 }
 
 const STYLES: Record<Genre, GenreStyle> = {
   jazz: {
-    chordOctaveBase: 52,
-    bassOctaveBase: 36,
+    chordOctaveBase: 45,
+    bassOctaveBase: 33,
     useSeventh: true,
-    chordPattern: [
-      { offset: 1, duration: 1, tones: [0, 1, 2, 3] },
-      { offset: 3, duration: 1, tones: [0, 1, 2, 3] },
+    // Off-beat "comping" idioms: backbeat stabs, Charleston push, sparse/laid-back bars
+    chordPatterns: [
+      [
+        { offset: 1, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 3, duration: 0.5, tones: [0, 1, 2] },
+      ],
+      [
+        { offset: 0.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 2, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 3.5, duration: 0.5, tones: [0, 1, 2] },
+      ],
+      [{ offset: 2.5, duration: 1, tones: [0, 1, 2] }],
+      [
+        { offset: 1, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 1.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 3, duration: 0.5, tones: [0, 1, 2] },
+      ],
     ],
-    bassPattern: [
-      { offset: 0, duration: 1, tones: [0] },
-      { offset: 1, duration: 1, tones: [2] },
-      { offset: 2, duration: 1, tones: [0] },
-      { offset: 3, duration: 1, tones: [2] },
+    bassPatterns: [
+      [
+        { offset: 0, duration: 1, tones: [0] },
+        { offset: 1, duration: 1, tones: [2] },
+        { offset: 2, duration: 1, tones: [1] },
+        { offset: 3, duration: 1, tones: [2] },
+      ],
+      [
+        { offset: 0, duration: 1, tones: [0] },
+        { offset: 1.5, duration: 0.5, tones: [1] },
+        { offset: 2, duration: 1, tones: [2] },
+        { offset: 3, duration: 1, tones: [1] },
+      ],
     ],
   },
   rock: {
-    chordOctaveBase: 48,
-    bassOctaveBase: 36,
+    chordOctaveBase: 40,
+    bassOctaveBase: 33,
     useSeventh: false,
-    chordPattern: [
-      { offset: 0, duration: 2, tones: [0, 2] },
-      { offset: 2, duration: 2, tones: [0, 2] },
+    chordPatterns: [
+      [
+        { offset: 0, duration: 2, tones: [0, 2] },
+        { offset: 2, duration: 2, tones: [0, 2] },
+      ],
+      [
+        { offset: 0, duration: 1, tones: [0, 2] },
+        { offset: 1, duration: 0.5, tones: [0, 2] },
+        { offset: 1.5, duration: 0.5, tones: [0, 2] },
+        { offset: 2, duration: 1, tones: [0, 2] },
+        { offset: 3, duration: 1, tones: [0, 2] },
+      ],
     ],
-    bassPattern: [
-      { offset: 0, duration: 1, tones: [0] },
-      { offset: 1, duration: 1, tones: [0] },
-      { offset: 2, duration: 1, tones: [0] },
-      { offset: 3, duration: 1, tones: [0] },
+    bassPatterns: [
+      [
+        { offset: 0, duration: 1, tones: [0] },
+        { offset: 1, duration: 1, tones: [0] },
+        { offset: 2, duration: 1, tones: [0] },
+        { offset: 3, duration: 1, tones: [0] },
+      ],
+      [
+        { offset: 0, duration: 0.5, tones: [0] },
+        { offset: 0.5, duration: 0.5, tones: [0] },
+        { offset: 1, duration: 1, tones: [0] },
+        { offset: 2, duration: 1, tones: [0] },
+        { offset: 3, duration: 1, tones: [2] },
+      ],
     ],
   },
   classical: {
-    chordOctaveBase: 52,
-    bassOctaveBase: 36,
+    chordOctaveBase: 45,
+    bassOctaveBase: 33,
     useSeventh: false,
-    chordPattern: [{ offset: 0, duration: 4, tones: [0, 1, 2] }],
-    bassPattern: [{ offset: 0, duration: 4, tones: [0] }],
+    chordPatterns: [
+      [{ offset: 0, duration: 4, tones: [0, 1, 2] }],
+      [
+        { offset: 0, duration: 2, tones: [0, 1, 2] },
+        { offset: 2, duration: 2, tones: [0, 1, 2] },
+      ],
+    ],
+    bassPatterns: [[{ offset: 0, duration: 4, tones: [0] }]],
   },
   samba: {
-    chordOctaveBase: 52,
-    bassOctaveBase: 36,
+    chordOctaveBase: 45,
+    bassOctaveBase: 33,
     useSeventh: true,
-    chordPattern: [
-      { offset: 0, duration: 0.5, tones: [0, 1, 2, 3] },
-      { offset: 1.5, duration: 0.5, tones: [0, 1, 2, 3] },
-      { offset: 2.5, duration: 1, tones: [0, 1, 2, 3] },
+    chordPatterns: [
+      [
+        { offset: 0, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 1.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 2.5, duration: 1, tones: [0, 1, 2] },
+      ],
+      [
+        { offset: 0.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 1.5, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 2, duration: 0.5, tones: [0, 1, 2] },
+        { offset: 3.5, duration: 0.5, tones: [0, 1, 2] },
+      ],
     ],
-    bassPattern: [
-      { offset: 0, duration: 1, tones: [0] },
-      { offset: 1.5, duration: 1, tones: [2] },
-      { offset: 3, duration: 1, tones: [0] },
+    bassPatterns: [
+      [
+        { offset: 0, duration: 1, tones: [0] },
+        { offset: 1.5, duration: 1, tones: [2] },
+        { offset: 3, duration: 1, tones: [0] },
+      ],
+      [
+        { offset: 0, duration: 1, tones: [0] },
+        { offset: 1, duration: 0.5, tones: [0] },
+        { offset: 2, duration: 1, tones: [2] },
+        { offset: 3.5, duration: 0.5, tones: [0] },
+      ],
     ],
   },
 };
@@ -75,11 +138,20 @@ function chordToneStack(chord: ChordSymbol, octaveBase: number, useSeventh: bool
   const triad = triadPitchClasses(chord.root, chord.quality);
   const seventh = (chord.root + (chord.quality === "maj" ? 11 : 10)) % 12;
   const tones = useSeventh ? [...triad, seventh] : triad;
-  return tones.map((pc) => octaveBase + pc + (pc < chord.root ? 12 : 0));
+
+  const pitches: number[] = [];
+  let prev = octaveBase - 1;
+  for (const pc of tones) {
+    let pitch = octaveBase + pc;
+    while (pitch <= prev) pitch += 12;
+    pitches.push(pitch);
+    prev = pitch;
+  }
+  return pitches;
 }
 
-function renderPattern(
-  pattern: BarEvent[],
+function renderPatterns(
+  patterns: BarEvent[][],
   chords: ChordSymbol[],
   beatsPerBar: number,
   octaveBase: number,
@@ -87,8 +159,9 @@ function renderPattern(
 ): Note[] {
   const notes: Note[] = [];
   let id = 0;
-  for (const chord of chords) {
+  chords.forEach((chord, barIndex) => {
     const stack = chordToneStack(chord, octaveBase, useSeventh);
+    const pattern = patterns[barIndex % patterns.length];
     for (const event of pattern) {
       const pitches = event.tones.map((i) => stack[Math.min(i, stack.length - 1)]).sort((a, b) => a - b);
       notes.push({
@@ -100,16 +173,16 @@ function renderPattern(
         velocity: 90,
       });
     }
-  }
+  });
   return notes;
 }
 
 export function renderChordsPart(chords: ChordSymbol[], genre: Genre, beatsPerBar: number): Note[] {
   const style = STYLES[genre];
-  return renderPattern(style.chordPattern, chords, beatsPerBar, style.chordOctaveBase, style.useSeventh);
+  return renderPatterns(style.chordPatterns, chords, beatsPerBar, style.chordOctaveBase, style.useSeventh);
 }
 
 export function renderBassPart(chords: ChordSymbol[], genre: Genre, beatsPerBar: number): Note[] {
   const style = STYLES[genre];
-  return renderPattern(style.bassPattern, chords, beatsPerBar, style.bassOctaveBase, false);
+  return renderPatterns(style.bassPatterns, chords, beatsPerBar, style.bassOctaveBase, false);
 }
