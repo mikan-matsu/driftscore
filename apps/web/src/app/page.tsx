@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
-import { ScoreViewer } from "@/features/score-viewer";
-import type { Melody } from "@/features/piano-roll";
+import { ScoreViewer, arrangementToMusicXml, type Arrangement } from "@/features/score-viewer";
 
 type Step = "pick" | "options" | "result";
 
@@ -14,7 +13,7 @@ export default function Home() {
   const [step, setStep] = useState<Step>("pick");
   const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
   const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30 });
-  const [resultMelody, setResultMelody] = useState<Melody | null>(null);
+  const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
 
   function handleSelectSong(song: PresetSong) {
@@ -23,26 +22,26 @@ export default function Home() {
   }
 
   async function handleGenerate() {
-    if (!selectedSong) return;
+    if (!selectedSong || !API_URL) return;
     setStatus("loading");
     setStep("result");
     try {
-      if (API_URL) {
-        await fetch(`${API_URL}/arrange`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            melody: selectedSong.melody,
-            genre: options.genre,
-            distortion: options.distortion,
-          }),
-        });
-      }
+      const res = await fetch(`${API_URL}/arrange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          melody: selectedSong.melody,
+          genre: options.genre,
+          distortion: options.distortion,
+        }),
+      });
+      if (!res.ok) throw new Error(`arrange API returned ${res.status}`);
+      const data = (await res.json()) as { arrangement: Arrangement };
+      setArrangement(data.arrangement);
+      setStatus("done");
     } catch {
-      // アレンジ生成APIは未実装なので、失敗してもプレビューは出す
+      setStatus("error");
     }
-    setResultMelody(selectedSong.melody);
-    setStatus("done");
   }
 
   return (
@@ -81,15 +80,18 @@ export default function Home() {
         {step === "result" && (
           <section className="w-full max-w-3xl flex flex-col gap-3">
             <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">3. 結果</h2>
-            {status === "loading" && (
-              <p className="text-sm text-zinc-500">生成中...</p>
+            {status === "loading" && <p className="text-sm text-zinc-500">生成中...</p>}
+            {status === "error" && (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                生成に失敗しました。もう一度お試しください。
+              </p>
             )}
-            {status === "done" && resultMelody && (
+            {status === "done" && arrangement && (
               <div className="flex flex-col gap-3">
-                <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                  アレンジ生成エンジンは準備中のため、今は選んだメロディーをそのまま五線譜表示しています。
-                </p>
-                <ScoreViewer melody={resultMelody} title={selectedSong?.title} />
+                <ScoreViewer
+                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title)}
+                  title={selectedSong?.title}
+                />
               </div>
             )}
           </section>
