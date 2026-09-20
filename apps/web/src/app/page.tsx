@@ -67,32 +67,32 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-screen bg-zinc-50 font-sans dark:bg-black">
+    <div className="flex flex-col flex-1 min-h-screen bg-slate-50 font-sans dark:bg-slate-950">
       <main className="flex flex-1 w-full flex-col items-center gap-8 py-12 px-4 sm:px-8">
         <div className="w-full max-w-3xl flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
             DriftScore
           </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             知ってる曲を選んで、好きなジャンルにアレンジしてみましょう。
           </p>
         </div>
 
         <section className="w-full max-w-3xl flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">1. 曲を選ぶ</h2>
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">1. 曲を選ぶ</h2>
           <SongPicker selectedId={selectedSong?.id ?? null} onSelect={handleSelectSong} />
         </section>
 
         {selectedSong && (
           <section className="w-full max-w-3xl flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">
               2. ジャンルと崩し度を決める
             </h2>
             <ArrangeOptionsForm value={options} onChange={setOptions} />
             <button
               type="button"
               onClick={handleGenerate}
-              className="self-start rounded-full bg-[#0a422f] px-6 py-2 text-sm font-medium text-white hover:bg-[#0a422f]/90"
+              className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
             >
               アレンジを生成する
             </button>
@@ -101,8 +101,8 @@ export default function Home() {
 
         {step === "result" && (
           <section className="w-full max-w-3xl flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">3. 結果</h2>
-            {status === "loading" && <p className="text-sm text-zinc-500">生成中...</p>}
+            <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">3. 結果</h2>
+            {status === "loading" && <p className="text-sm text-slate-500">生成中...</p>}
             {status === "error" && (
               <p className="text-sm text-red-600 dark:text-red-400">
                 生成に失敗しました。もう一度お試しください。
@@ -113,7 +113,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleTogglePlay}
-                  className="self-start rounded-full bg-[#0a422f] px-6 py-2 text-sm font-medium text-white hover:bg-[#0a422f]/90"
+                  className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
                 >
                   {isPlaying ? "■ 停止" : "▶ 再生"}
                 </button>

@@ -32,7 +32,7 @@ export function ScoreViewer({ musicXml, title }: { musicXml: string; title?: str
   }, [musicXml, title]);
 
   return (
-    <div className="w-full overflow-x-auto rounded-lg border border-neutral-300 bg-white p-4 dark:border-neutral-700">
+    <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700">
       <div ref={containerRef} />
     </div>
   );

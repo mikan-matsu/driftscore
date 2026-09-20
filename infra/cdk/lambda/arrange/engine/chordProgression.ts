@@ -12,9 +12,19 @@ export function triadPitchClasses(rootPitchClass: number, quality: ChordQuality)
   return [rootPitchClass, (rootPitchClass + third) % 12, (rootPitchClass + fifth) % 12];
 }
 
+function rootMotionScore(fromRoot: number, toRoot: number): number {
+  const interval = ((toRoot - fromRoot) % 12 + 12) % 12;
+  // Strong root motion: down a 5th / up a 4th (7) or up a 5th / down a 4th (5)
+  if (interval === 5 || interval === 7) return 2;
+  if (interval === 0) return -3; // same chord as before — discourage when a real choice exists
+  return 0;
+}
+
 /**
  * Picks one diatonic triad per bar: the triad whose chord tones cover the
- * most (duration-weighted) melody notes sounding in that bar.
+ * most (duration-weighted, downbeat-emphasized) melody notes sounding in
+ * that bar. Ties are broken by preferring strong root motion (4th/5th)
+ * from the previous bar's chord instead of always collapsing to the tonic.
  */
 export function estimateChordProgression(melody: Melody, key: EstimatedKey): ChordSymbol[] {
   const degrees = key.isMinor ? MINOR_DEGREES : MAJOR_DEGREES;
@@ -24,6 +34,8 @@ export function estimateChordProgression(melody: Melody, key: EstimatedKey): Cho
   const barCount = Math.max(1, Math.ceil(lastEnd / melody.beatsPerBar));
 
   const chords: ChordSymbol[] = [];
+  let prevRoot: number | null = null;
+
   for (let bar = 0; bar < barCount; bar++) {
     const barStart = bar * melody.beatsPerBar;
     const barEnd = barStart + melody.beatsPerBar;
@@ -31,27 +43,24 @@ export function estimateChordProgression(melody: Melody, key: EstimatedKey): Cho
     for (const note of melody.notes) {
       const overlap = Math.min(note.start + note.duration, barEnd) - Math.max(note.start, barStart);
       if (overlap > 0) {
-        weights[((note.pitch % 12) + 12) % 12] += overlap;
+        const downbeatBonus = note.start <= barStart + 0.01 ? 1.5 : 1;
+        weights[((note.pitch % 12) + 12) % 12] += overlap * downbeatBonus;
       }
     }
 
-    let bestIndex = 0;
-    let bestScore = -Infinity;
-    for (let i = 0; i < 7; i++) {
-      const rootPc = (key.root + degrees[i]) % 12;
+    const scored = degrees.map((degree, i) => {
+      const rootPc = (key.root + degree) % 12;
       const tones = triadPitchClasses(rootPc, qualities[i]);
-      const score = tones.reduce((sum, pc) => sum + weights[pc], 0);
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = i;
-      }
-    }
-
-    chords.push({
-      root: (key.root + degrees[bestIndex]) % 12,
-      quality: qualities[bestIndex],
-      bar,
+      const coverage = tones.reduce((sum, pc) => sum + weights[pc], 0);
+      const motion = prevRoot === null ? 0 : rootMotionScore(prevRoot, rootPc);
+      return { i, rootPc, coverage, total: coverage + motion * 0.1 };
     });
+
+    scored.sort((a, b) => b.total - a.total);
+    const best = scored[0];
+
+    chords.push({ root: best.rootPc, quality: qualities[best.i], bar });
+    prevRoot = best.rootPc;
   }
   return chords;
 }

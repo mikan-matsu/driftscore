@@ -12,17 +12,17 @@ export function ArrangeOptionsForm({
   return (
     <div className="flex flex-col gap-6 w-full">
       <div className="flex flex-col gap-2">
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">ジャンル</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400">ジャンル</span>
         <div className="flex flex-wrap gap-2">
           {GENRES.map((genre) => (
             <button
               key={genre.id}
               type="button"
               onClick={() => onChange({ ...value, genre: genre.id })}
-              className={`rounded-full px-4 py-2 text-sm transition-colors ${
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 value.genre === genre.id
-                  ? "bg-[#0a422f] text-white"
-                  : "border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                  ? "bg-blue-400 text-white"
+                  : "border border-slate-200 text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
               {genre.label}
@@ -31,7 +31,7 @@ export function ArrangeOptionsForm({
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-400">
+        <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400">
           <span>崩し度</span>
           <span>{value.distortion}</span>
         </div>
@@ -41,9 +41,9 @@ export function ArrangeOptionsForm({
           max={100}
           value={value.distortion}
           onChange={(e) => onChange({ ...value, distortion: Number(e.target.value) })}
-          className="w-full accent-[#0a422f]"
+          className="w-full accent-blue-400"
         />
-        <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-500">
+        <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500">
           <span>忠実</span>
           <span>大胆に崩す</span>
         </div>
