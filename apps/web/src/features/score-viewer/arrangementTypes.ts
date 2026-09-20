@@ -12,12 +12,15 @@ export interface ArrangementPart {
   id: string;
   name: string;
   clef: "treble" | "bass";
+  transposeSemitones: number;
+  polyphonic: boolean;
   melody: Melody;
 }
 
 export interface Arrangement {
   genre: string;
   distortion: number;
+  ensembleId: string;
   beatsPerBar: number;
   chords: ChordSymbol[];
   parts: ArrangementPart[];

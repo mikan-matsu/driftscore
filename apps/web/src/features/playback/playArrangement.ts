@@ -25,9 +25,9 @@ export async function playArrangement(arrangement: Arrangement, bpm = 108) {
 
   for (const part of arrangement.parts) {
     const synth: Playable =
-      part.id === "bass"
+      part.clef === "bass"
         ? new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination()
-        : part.id === "chords"
+        : part.polyphonic
           ? new Tone.PolySynth(Tone.Synth).toDestination()
           : new Tone.Synth().toDestination();
     synths.push(synth);

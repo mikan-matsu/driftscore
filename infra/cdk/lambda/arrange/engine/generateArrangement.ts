@@ -1,27 +1,28 @@
 import { estimateKey } from "./keyEstimation";
 import { estimateChordProgression } from "./chordProgression";
-import { renderBassPart, renderChordsPart } from "./genreStyles";
-import { embellishMelody } from "./embellishMelody";
+import { assignRoles } from "./assignRoles";
+import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
 import type { Arrangement, Genre, Melody } from "./types";
 
-export function generateArrangement(melody: Melody, genre: Genre, distortion: number): Arrangement {
+export function generateArrangement(
+  melody: Melody,
+  genre: Genre,
+  distortion: number,
+  ensembleId: string = DEFAULT_ENSEMBLE_ID,
+): Arrangement {
+  const preset = ENSEMBLE_PRESETS[ensembleId] ?? ENSEMBLE_PRESETS[DEFAULT_ENSEMBLE_ID];
   const key = estimateKey(melody);
   const chords = estimateChordProgression(melody, key);
   const beatsPerBar = melody.beatsPerBar;
 
-  const melodyPart: Melody = embellishMelody(melody, distortion);
-  const chordsPart: Melody = { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar) };
-  const bassPart: Melody = { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) };
+  const parts = assignRoles(melody, chords, genre, distortion, preset.instruments);
 
   return {
     genre,
     distortion,
+    ensembleId: preset.id,
     beatsPerBar,
     chords,
-    parts: [
-      { id: "melody", name: "Melody", clef: "treble", melody: melodyPart },
-      { id: "chords", name: "Piano (Chords)", clef: "treble", melody: chordsPart },
-      { id: "bass", name: "Bass", clef: "bass", melody: bassPart },
-    ],
+    parts,
   };
 }

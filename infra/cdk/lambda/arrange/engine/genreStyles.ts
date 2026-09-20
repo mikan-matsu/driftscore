@@ -17,7 +17,7 @@ interface GenreStyle {
   bassPatterns: BarEvent[][];
 }
 
-const STYLES: Record<Genre, GenreStyle> = {
+export const STYLES: Record<Genre, GenreStyle> = {
   jazz: {
     chordOctaveBase: 45,
     bassOctaveBase: 33,

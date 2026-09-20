@@ -34,7 +34,7 @@ function pitchXml(pitch: number): string {
   return `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ""}<octave>${octave}</octave></pitch>`;
 }
 
-function noteXml(durationBeats: number, note: Note | null): string {
+function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number): string {
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
@@ -46,7 +46,7 @@ function noteXml(durationBeats: number, note: Note | null): string {
   return pitches
     .map(
       (pitch, i) =>
-        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration><type>${type}</type>${dotXml}</note>`,
+        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration><type>${type}</type>${dotXml}</note>`,
     )
     .join("");
 }
@@ -68,7 +68,13 @@ function clefXml(clef: "treble" | "bass"): string {
   return clef === "bass" ? "<clef><sign>F</sign><line>4</line></clef>" : "<clef><sign>G</sign><line>2</line></clef>";
 }
 
-function melodyToMeasures(melody: Melody): string[][] {
+function transposeXml(transposeSemitones: number): string {
+  if (!transposeSemitones) return "";
+  // MusicXML <chromatic> is semitones from written to sounding pitch — the inverse of our convention.
+  return `<transpose><chromatic>${-transposeSemitones}</chromatic></transpose>`;
+}
+
+function melodyToMeasures(melody: Melody, transposeSemitones = 0): string[][] {
   const beatsPerBar = melody.beatsPerBar;
   const sorted = [...melody.notes].sort((a, b) => a.start - b.start);
   const measures: string[][] = [[]];
@@ -79,7 +85,7 @@ function melodyToMeasures(melody: Melody): string[][] {
     while (remaining > 0) {
       const roomLeft = beatsPerBar - measureBeats;
       const chunk = Math.min(remaining, roomLeft);
-      measures[measures.length - 1].push(noteXml(chunk, note));
+      measures[measures.length - 1].push(noteXml(chunk, note, transposeSemitones));
       measureBeats += chunk;
       remaining -= chunk;
       if (measureBeats >= beatsPerBar) {
@@ -104,7 +110,7 @@ function melodyToMeasures(melody: Melody): string[][] {
     measures.pop();
   }
   if (measures.length === 0) {
-    measures.push([noteXml(beatsPerBar, null)]);
+    measures.push([noteXml(beatsPerBar, null, transposeSemitones)]);
   }
   return measures;
 }
@@ -115,16 +121,16 @@ function partMeasuresXml(
   measureCount: number,
   chordsPerMeasure?: ChordSymbol[],
 ): string {
-  const measures = melodyToMeasures(part.melody);
+  const measures = melodyToMeasures(part.melody, part.transposeSemitones);
   while (measures.length < measureCount) {
-    measures.push([noteXml(beatsPerBar, null)]);
+    measures.push([noteXml(beatsPerBar, null, part.transposeSemitones)]);
   }
 
   return measures
     .map((notesXml, i) => {
       const attrs =
         i === 0
-          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}</attributes>`
+          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}${transposeXml(part.transposeSemitones)}</attributes>`
           : "";
       const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
       return `<measure number="${i + 1}">${attrs}${harmony}${notesXml.join("")}</measure>`;
@@ -141,8 +147,8 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
     .map((p) => `<score-part id="${p.id}"><part-name>${p.name}</part-name></score-part>`)
     .join("");
   const parts = arrangement.parts
-    .map((p) => {
-      const chordsPerMeasure = p.id === "melody" ? arrangement.chords : undefined;
+    .map((p, i) => {
+      const chordsPerMeasure = i === 0 ? arrangement.chords : undefined;
       return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure)}</part>`;
     })
     .join("");

@@ -1,5 +1,6 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { generateArrangement } from "./engine/generateArrangement";
+import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./engine/ensembles";
 import type { Genre, Melody } from "./engine/types";
 
 const GENRES: Genre[] = ["jazz", "rock", "classical", "samba"];
@@ -8,6 +9,7 @@ interface RequestBody {
   melody?: Melody;
   genre?: string;
   distortion?: number;
+  ensembleId?: string;
 }
 
 function isValidMelody(melody: unknown): melody is Melody {
@@ -29,8 +31,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
   const genre = GENRES.includes(body.genre as Genre) ? (body.genre as Genre) : "jazz";
   const distortion = typeof body.distortion === "number" ? body.distortion : 30;
+  const ensembleId = body.ensembleId && ENSEMBLE_PRESETS[body.ensembleId] ? body.ensembleId : DEFAULT_ENSEMBLE_ID;
 
-  const arrangement = generateArrangement(body.melody, genre, distortion);
+  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId);
 
   return {
     statusCode: 200,

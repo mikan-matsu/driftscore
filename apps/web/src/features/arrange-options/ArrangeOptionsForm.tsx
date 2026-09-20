@@ -1,6 +1,6 @@
 "use client";
 
-import { GENRES, type ArrangeOptions } from "./types";
+import { ENSEMBLES, GENRES, type ArrangeOptions } from "./types";
 
 export function ArrangeOptionsForm({
   value,
@@ -26,6 +26,26 @@ export function ArrangeOptionsForm({
               }`}
             >
               {genre.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-slate-500 dark:text-slate-400">編成</span>
+        <div className="flex flex-wrap gap-2">
+          {ENSEMBLES.map((ensemble) => (
+            <button
+              key={ensemble.id}
+              type="button"
+              title={ensemble.description}
+              onClick={() => onChange({ ...value, ensembleId: ensemble.id })}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                value.ensembleId === ensemble.id
+                  ? "bg-blue-400 text-white"
+                  : "border border-slate-200 text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              {ensemble.label}
             </button>
           ))}
         </div>
