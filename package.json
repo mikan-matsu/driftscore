@@ -1,0 +1,16 @@
+{
+  "name": "driftscore",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "infra/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web --",
+    "build:web": "npm run build --workspace=apps/web",
+    "cdk": "npm run cdk --workspace=infra/cdk"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
