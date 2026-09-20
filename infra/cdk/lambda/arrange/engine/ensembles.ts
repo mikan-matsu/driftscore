@@ -22,6 +22,17 @@ export const ENSEMBLE_PRESETS: Record<string, EnsemblePreset> = {
     name: "Clarinet, Guitar & Bass",
     instruments: [INSTRUMENTS.clarinetBb, INSTRUMENTS.guitar, INSTRUMENTS.electricBass],
   },
+  brassQuintet: {
+    id: "brassQuintet",
+    name: "Brass Quintet",
+    instruments: [
+      INSTRUMENTS.trumpetBb,
+      INSTRUMENTS.trumpetBb2,
+      INSTRUMENTS.hornF,
+      INSTRUMENTS.trombone,
+      INSTRUMENTS.tuba,
+    ],
+  },
 };
 
 export const DEFAULT_ENSEMBLE_ID = "pianoTrio";

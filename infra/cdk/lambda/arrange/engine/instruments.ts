@@ -94,4 +94,34 @@ export const INSTRUMENTS: Record<string, InstrumentDef> = {
     polyphonic: true,
     roleAffinity: "harmony",
   },
+  trumpetBb2: {
+    id: "trumpetBb2",
+    name: "Trumpet in B♭ 2",
+    clef: "treble",
+    transposeSemitones: 2,
+    rangeLow: 54, // F#3 sounding
+    rangeHigh: 82, // A5 sounding
+    polyphonic: false,
+    roleAffinity: "harmony",
+  },
+  trombone: {
+    id: "trombone",
+    name: "Trombone",
+    clef: "bass",
+    transposeSemitones: 0,
+    rangeLow: 40, // E2 sounding
+    rangeHigh: 72, // C5 sounding
+    polyphonic: false,
+    roleAffinity: "harmony",
+  },
+  tuba: {
+    id: "tuba",
+    name: "Tuba",
+    clef: "bass",
+    transposeSemitones: 0,
+    rangeLow: 28, // E1 sounding
+    rangeHigh: 58, // Bb3 sounding
+    polyphonic: false,
+    roleAffinity: "bass",
+  },
 };
