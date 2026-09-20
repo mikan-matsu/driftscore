@@ -5,6 +5,8 @@ import type { InstrumentDef } from "./instruments";
 import type { EstimatedKey } from "./keyEstimation";
 import type { ArrangementPart, ChordSymbol, Genre, Melody, Note } from "./types";
 
+const DEFAULT_CEILING = 84; // fallback comping ceiling for bars with no melody note (e.g. a rest)
+
 /** Shifts a pitch by octaves until it lies within [low, high]. */
 function foldToRange(pitch: number, low: number, high: number): number {
   let p = pitch;
@@ -25,29 +27,68 @@ function foldMelodyToRange(melody: Melody, low: number, high: number): Melody {
 }
 
 /**
- * Drops any accompaniment note whose register collides with the melody note
- * sounding at the same time down an octave (as long as that stays within
- * `low`), so comping doesn't fight the melody for the same register.
+ * The standard comping technique is to voice accompaniment in the register
+ * immediately below the melody, not in some independently-chosen register —
+ * see e.g. jazz comping voice-leading practice. This computes, per bar, the
+ * lowest melody pitch sounding in that bar (comping must stay below it), so
+ * accompaniment is built anchored to the melody instead of drifting into it
+ * and having to be shoved out of the way afterward.
  */
-function lowerBelowMelody(melody: Melody, melodyNotes: Note[], low: number): Melody {
-  return {
-    ...melody,
-    notes: melody.notes.map((n) => {
-      const pitches = n.pitches ?? [n.pitch];
-      const overlapping = melodyNotes.filter(
-        (m) => m.start < n.start + n.duration && n.start < m.start + m.duration,
-      );
-      if (overlapping.length === 0) return n;
-      const melodyFloor = Math.min(...overlapping.map((m) => m.pitch));
-      let shift = 0;
-      while (Math.max(...pitches) + shift >= melodyFloor && Math.min(...pitches) + shift - 12 >= low) {
-        shift -= 12;
-      }
-      if (shift === 0) return n;
-      const shifted = pitches.map((p) => p + shift);
-      return { ...n, pitch: shifted[0], pitches: shifted.length > 1 ? shifted : undefined };
-    }),
-  };
+function computeMelodyCeilings(chords: ChordSymbol[], melodyNotes: Note[], beatsPerBar: number): number[] {
+  let lastCeiling = DEFAULT_CEILING;
+  return chords.map((chord) => {
+    const barStart = chord.bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const inBar = melodyNotes.filter((n) => n.start < barEnd && barStart < n.start + n.duration);
+    if (inBar.length === 0) return lastCeiling;
+    lastCeiling = Math.min(...inBar.map((n) => n.pitch));
+    return lastCeiling;
+  });
+}
+
+/**
+ * Per-bar floor for accompaniment: the highest bass pitch sounding in that
+ * bar (plus a small buffer), so comping doesn't drift down into the bass's
+ * actual register — not just its nominal instrument range, which the bass
+ * doesn't use uniformly (e.g. a walking approach tone can climb briefly).
+ */
+function computeBassFloors(chords: ChordSymbol[], bassNotes: Note[], beatsPerBar: number, fallback: number): number[] {
+  let lastFloor = fallback;
+  return chords.map((chord) => {
+    const barStart = chord.bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const inBar = bassNotes.filter((n) => n.start < barEnd && barStart < n.start + n.duration);
+    if (inBar.length === 0) return lastFloor;
+    lastFloor = Math.max(...inBar.map((n) => n.pitch)) + 1;
+    return lastFloor;
+  });
+}
+
+/**
+ * Bar-level ceilings/floors handle the normal case, but a comping note that
+ * sustains across a bar line (e.g. a syncopated hit landing just before the
+ * barline) can still land in a register the *next* bar's melody or bass
+ * moves into mid-sustain. This is a final, rare-case safety net using real
+ * time overlap rather than bar membership, shifting the whole simultaneous
+ * note (never per-tone, to keep the voicing's shape) out of the way.
+ */
+function clearOverlaps(notes: Note[], other: Note[], direction: "below" | "above"): Note[] {
+  return notes.map((n) => {
+    const pitches = n.pitches ?? [n.pitch];
+    const overlapping = other.filter((o) => o.start < n.start + n.duration && n.start < o.start + o.duration);
+    if (overlapping.length === 0) return n;
+    let shift = 0;
+    if (direction === "below") {
+      const boundary = Math.min(...overlapping.map((o) => o.pitch));
+      while (Math.max(...pitches) + shift >= boundary) shift -= 12;
+    } else {
+      const boundary = Math.max(...overlapping.map((o) => o.pitch));
+      while (Math.min(...pitches) + shift <= boundary) shift += 12;
+    }
+    if (shift === 0) return n;
+    const shifted = pitches.map((p) => p + shift);
+    return { ...n, pitch: shifted[0], pitches: shifted.length > 1 ? shifted : undefined };
+  });
 }
 
 function pickMelodyInstrument(ensemble: InstrumentDef[]): InstrumentDef {
@@ -64,16 +105,21 @@ function pickBassInstrument(candidates: InstrumentDef[]): InstrumentDef | null {
 
 /**
  * Splits the genre's chord-tone stack across a set of monophonic instruments,
- * one tone per instrument per event (top tone to the highest-register
- * instrument), voice-led against each instrument's previous note. When there
- * are fewer instruments than chord tones, the lowest extensions are dropped;
- * when there are more, the extra (lowest-register) instruments rest.
+ * one tone per instrument per event, voice-led against each instrument's
+ * previous note. The highest-register instrument is anchored below the
+ * melody ceiling for that bar, and each lower instrument is then anchored
+ * below the voice just above it, so voices stay in SATB-style descending
+ * order without crossing. When there are fewer instruments than chord
+ * tones, the lowest extensions are dropped; when there are more, the extra
+ * (lowest-register) instruments rest.
  */
 function renderHarmonyVoices(
   chords: ChordSymbol[],
   genre: Genre,
   beatsPerBar: number,
   instruments: InstrumentDef[],
+  ceilings: number[],
+  lows: number[],
 ): Map<string, Note[]> {
   const style = STYLES[genre];
   const byRegister = [...instruments].sort((a, b) => b.rangeHigh - a.rangeHigh);
@@ -88,15 +134,20 @@ function renderHarmonyVoices(
     const seventh = (chord.root + (chord.quality === "maj" ? 11 : 10)) % 12;
     const tones = style.useSeventh ? [...triad, seventh] : triad;
     const pattern = style.chordPatterns[barIndex % style.chordPatterns.length];
+    const ceiling = ceilings[barIndex];
+    const low = lows[barIndex];
 
     for (const event of pattern) {
       const voiceCount = Math.min(byRegister.length, tones.length);
+      let above = ceiling;
       for (let i = 0; i < voiceCount; i++) {
         const instrument = byRegister[i];
         const pc = tones[tones.length - 1 - i];
         const prev = prevPitch.get(instrument.id)!;
         let pitch = pc + 12 * Math.round((prev - pc) / 12);
         pitch = foldToRange(pitch, instrument.rangeLow, instrument.rangeHigh);
+        while (pitch >= above) pitch -= 12; // ceiling wins even if it means dipping below the instrument's nominal low end
+        while (pitch < low && pitch + 12 < above) pitch += 12; // then try to clear the bass too, without breaking the ceiling
         prevPitch.set(instrument.id, pitch);
         notesByInstrument.get(instrument.id)!.push({
           id: `h${id++}`,
@@ -105,6 +156,7 @@ function renderHarmonyVoices(
           duration: event.duration,
           velocity: 85,
         });
+        above = pitch;
       }
     }
   });
@@ -134,41 +186,7 @@ export function assignRoles(
     polyphonic: melodyInstrument.polyphonic,
     melody: foldMelodyToRange(embellishMelody(melody, distortion, key), melodyInstrument.rangeLow, melodyInstrument.rangeHigh),
   };
-  const melodyNotes = melodyPart.melody.notes;
-
-  const harmonyParts: ArrangementPart[] = [];
-  const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
-  const monoHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
-
-  for (const instrument of polyHarmony) {
-    const inRange = foldMelodyToRange(
-      { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar) },
-      instrument.rangeLow,
-      instrument.rangeHigh,
-    );
-    harmonyParts.push({
-      id: instrument.id,
-      name: instrument.name,
-      clef: instrument.clef,
-      transposeSemitones: instrument.transposeSemitones,
-      polyphonic: instrument.polyphonic,
-      melody: lowerBelowMelody(inRange, melodyNotes, instrument.rangeLow),
-    });
-  }
-  if (monoHarmony.length > 0) {
-    const voices = renderHarmonyVoices(chords, genre, beatsPerBar, monoHarmony);
-    for (const instrument of monoHarmony) {
-      const inRange: Melody = { beatsPerBar, notes: voices.get(instrument.id) ?? [] };
-      harmonyParts.push({
-        id: instrument.id,
-        name: instrument.name,
-        clef: instrument.clef,
-        transposeSemitones: instrument.transposeSemitones,
-        polyphonic: instrument.polyphonic,
-        melody: lowerBelowMelody(inRange, melodyNotes, instrument.rangeLow),
-      });
-    }
-  }
+  const ceilings = computeMelodyCeilings(chords, melodyPart.melody.notes, beatsPerBar);
 
   const bassPart: ArrangementPart | null = bassInstrument
     ? {
@@ -184,7 +202,51 @@ export function assignRoles(
         ),
       }
     : null;
+  const bassFloors = computeBassFloors(chords, bassPart?.melody.notes ?? [], beatsPerBar, bassInstrument?.rangeHigh ?? 0);
+
+  const harmonyParts: ArrangementPart[] = [];
+  const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
+  const monoHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
+
+  for (const instrument of polyHarmony) {
+    const lows = bassFloors.map((f) => Math.max(instrument.rangeLow, f));
+    harmonyParts.push({
+      id: instrument.id,
+      name: instrument.name,
+      clef: instrument.clef,
+      transposeSemitones: instrument.transposeSemitones,
+      polyphonic: instrument.polyphonic,
+      melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows) },
+    });
+  }
+  if (monoHarmony.length > 0) {
+    const lowestRange = Math.min(...monoHarmony.map((i) => i.rangeLow));
+    const lows = bassFloors.map((f) => Math.max(lowestRange, f));
+    const voices = renderHarmonyVoices(chords, genre, beatsPerBar, monoHarmony, ceilings, lows);
+    for (const instrument of monoHarmony) {
+      harmonyParts.push({
+        id: instrument.id,
+        name: instrument.name,
+        clef: instrument.clef,
+        transposeSemitones: instrument.transposeSemitones,
+        polyphonic: instrument.polyphonic,
+        melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
+      });
+    }
+  }
+
+  const clearedHarmonyParts = harmonyParts.map((part) => ({
+    ...part,
+    melody: {
+      ...part.melody,
+      notes: clearOverlaps(
+        clearOverlaps(part.melody.notes, melodyPart.melody.notes, "below"),
+        bassPart?.melody.notes ?? [],
+        "above",
+      ),
+    },
+  }));
 
   // Staff order top-to-bottom: melody, then harmony (high to low register), then bass at the very bottom.
-  return [melodyPart, ...harmonyParts, ...(bassPart ? [bassPart] : [])];
+  return [melodyPart, ...clearedHarmonyParts, ...(bassPart ? [bassPart] : [])];
 }
