@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
+import { ScoreViewer } from "@/features/score-viewer";
 import type { Melody } from "@/features/piano-roll";
 
 type Step = "pick" | "options" | "result";
@@ -86,8 +87,9 @@ export default function Home() {
             {status === "done" && resultMelody && (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                  アレンジ生成エンジンと五線譜表示は準備中です。もうしばらくお待ちください。
+                  アレンジ生成エンジンは準備中のため、今は選んだメロディーをそのまま五線譜表示しています。
                 </p>
+                <ScoreViewer melody={resultMelody} title={selectedSong?.title} />
               </div>
             )}
           </section>
