@@ -7,6 +7,9 @@ export const GM_KICK = 36;
 export const GM_SNARE = 38;
 export const GM_HIHAT_CLOSED = 42;
 export const GM_RIDE = 51;
+export const GM_AGOGO_HIGH = 67;
+export const GM_AGOGO_LOW = 68;
+export const GM_MARACAS = 70;
 
 interface DrumHit {
   offset: number;
@@ -44,7 +47,32 @@ const JAZZ_BAR: DrumHit[] = [
   { offset: 3.75, duration: 0.25, pitches: [GM_RIDE] },
 ];
 
-const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR };
+// Samba percussion, on a 16th-note grid (samba is felt in 16, not 8 — a
+// straight eighth-note shaker reads as generic pop/rock, not samba).
+// Maracas run continuous sixteenths for the shimmer; the surdo (stood in by
+// the kick) hits the off-beat 8ths for the forward-leaning push; the agogô
+// bell rides the "Brazilian clave" syncopation cell (3-3-4-2-2 in 16th
+// units), alternating high/low.
+const SAMBA_BAR: DrumHit[] = [
+  { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
+  { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
+  { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
+  { offset: 1, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_KICK, GM_AGOGO_HIGH] },
+  { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 2, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_KICK, GM_AGOGO_LOW] },
+  { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
+  { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
+  { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS] },
+];
+
+const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR, samba: SAMBA_BAR };
 
 export interface DrumVoices {
   /** Hihat/snare/ride — standard drum notation convention: stems up. */
@@ -55,8 +83,8 @@ export interface DrumVoices {
 
 /**
  * Renders a drum part for genres with a defined beat, or null for genres
- * without one (classical, samba — not asked for, left out rather than
- * guessing at a pattern). Deliberately bypasses assignRoles' pitch-folding
+ * without one (classical — not asked for, left out rather than guessing at
+ * a pattern). Deliberately bypasses assignRoles' pitch-folding
  * and collision-avoidance machinery (computeMelodyCeilings, clearOverlaps,
  * etc.) entirely: that logic treats `pitch` as a real sounding pitch to be
  * octave-shifted around other parts, which would silently mangle GM

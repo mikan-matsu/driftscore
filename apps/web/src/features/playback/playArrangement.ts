@@ -1,7 +1,15 @@
 "use client";
 
 import type { Arrangement } from "@/features/score-viewer";
-import { GM_KICK, GM_SNARE, GM_HIHAT_CLOSED, GM_RIDE } from "@/features/score-viewer/percussionMap";
+import {
+  GM_KICK,
+  GM_SNARE,
+  GM_HIHAT_CLOSED,
+  GM_RIDE,
+  GM_AGOGO_HIGH,
+  GM_AGOGO_LOW,
+  GM_MARACAS,
+} from "@/features/score-viewer/percussionMap";
 
 interface Playable {
   triggerAttackRelease(note: string | number, duration: number, time?: number): void;
@@ -34,6 +42,26 @@ function createDrumKit(Tone: typeof import("tone")): { trigger: (gmKey: number, 
     resonance: 3000,
     octaves: 1,
   }).toDestination();
+  // Shaker: a much tighter noise burst than the snare's, so it reads as a
+  // continuous shimmer rather than a backbeat hit.
+  const maracas = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.04, sustain: 0 } }).toDestination();
+  // Agogô bells: two MetalSynths tuned apart (like hihat/ride above) rather
+  // than one instrument pitched dynamically, since MetalSynth's trigger
+  // doesn't take a note argument.
+  const agogoHigh = new Tone.MetalSynth({
+    envelope: { attack: 0.001, decay: 0.2, release: 0.05 },
+    harmonicity: 8,
+    modulationIndex: 16,
+    resonance: 5200,
+    octaves: 0.8,
+  }).toDestination();
+  const agogoLow = new Tone.MetalSynth({
+    envelope: { attack: 0.001, decay: 0.25, release: 0.05 },
+    harmonicity: 6,
+    modulationIndex: 16,
+    resonance: 3600,
+    octaves: 0.8,
+  }).toDestination();
 
   const trigger = (gmKey: number, duration: number, time: number) => {
     switch (gmKey) {
@@ -49,10 +77,19 @@ function createDrumKit(Tone: typeof import("tone")): { trigger: (gmKey: number, 
       case GM_RIDE:
         ride.triggerAttackRelease(duration, time);
         break;
+      case GM_MARACAS:
+        maracas.triggerAttackRelease(duration, time);
+        break;
+      case GM_AGOGO_HIGH:
+        agogoHigh.triggerAttackRelease(duration, time);
+        break;
+      case GM_AGOGO_LOW:
+        agogoLow.triggerAttackRelease(duration, time);
+        break;
     }
   };
 
-  return { trigger, voices: [kick, snare, hihat, ride] };
+  return { trigger, voices: [kick, snare, hihat, ride, maracas, agogoHigh, agogoLow] };
 }
 
 let stopCurrent: (() => void) | null = null;
