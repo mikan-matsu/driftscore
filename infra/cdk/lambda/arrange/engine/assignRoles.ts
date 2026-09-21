@@ -7,6 +7,31 @@ import type { ArrangementPart, ChordSymbol, Genre, Melody, Note } from "./types"
 
 const DEFAULT_CEILING = 84; // fallback comping ceiling for bars with no melody note (e.g. a rest)
 
+// A small ensemble has no other instrument to cover a neighboring registral
+// "slot", so real arrangers let each part range further toward its extremes
+// than they would in a full section — a wider *tolerance* around the same
+// idiomatic center, not a different center. All current presets (piano trio,
+// woodwind quartet, clarinet/guitar/bass, brass quintet) are this small, so
+// SMALL_ENSEMBLE_SIZE covers them; LARGE_ENSEMBLE_SIZE is a placeholder for
+// when a full concert-band preset exists, where the pressure disappears.
+const SMALL_ENSEMBLE_SIZE = 5;
+const LARGE_ENSEMBLE_SIZE = 10;
+const MAX_IDIOMATIC_TOLERANCE = 0.5; // small ensembles may stray up to halfway from the idiomatic edge to the technical edge before being penalized
+
+/** How far outside its idiomatic band a small ensemble's part may stray before the octave-shift scoring penalizes it — 0 (large ensemble) to MAX_IDIOMATIC_TOLERANCE (small ensemble). */
+function idiomaticTolerance(ensembleSize: number): number {
+  if (ensembleSize <= SMALL_ENSEMBLE_SIZE) return MAX_IDIOMATIC_TOLERANCE;
+  if (ensembleSize >= LARGE_ENSEMBLE_SIZE) return 0;
+  return (MAX_IDIOMATIC_TOLERANCE * (LARGE_ENSEMBLE_SIZE - ensembleSize)) / (LARGE_ENSEMBLE_SIZE - SMALL_ENSEMBLE_SIZE);
+}
+
+/** 0 when `value` is inside [low, high]; otherwise the distance to the nearest edge — being anywhere inside the idiomatic band is equally fine, not just its exact center. */
+function distanceFromBand(value: number, low: number, high: number): number {
+  if (value < low) return low - value;
+  if (value > high) return value - high;
+  return 0;
+}
+
 /** Shifts a pitch by octaves until it lies within [low, high]. */
 function foldToRange(pitch: number, low: number, high: number): number {
   let p = pitch;
@@ -35,13 +60,16 @@ function foldMelodyToRange(melody: Melody, low: number, high: number): Melody {
  * A flute part sitting at the very bottom of its technical range is
  * "playable" but not how a real arranger would voice it; see instruments.ts.
  * Falls back to centering on the full technical range when no idiomatic
- * band is defined for the instrument.
+ * band is defined for the instrument. `ensembleSize` widens the idiomatic
+ * band's tolerance for small ensembles — see idiomaticTolerance().
  */
-function pickIdiomaticOctaveShift(melody: Melody, instrument: InstrumentDef): number {
+function pickIdiomaticOctaveShift(melody: Melody, instrument: InstrumentDef, ensembleSize: number): number {
   if (melody.notes.length === 0) return 0;
-  const targetLow = instrument.idiomaticLow ?? instrument.rangeLow;
-  const targetHigh = instrument.idiomaticHigh ?? instrument.rangeHigh;
-  const targetCenter = (targetLow + targetHigh) / 2;
+  const idiomLow = instrument.idiomaticLow ?? instrument.rangeLow;
+  const idiomHigh = instrument.idiomaticHigh ?? instrument.rangeHigh;
+  const tolerance = idiomaticTolerance(ensembleSize);
+  const targetLow = idiomLow - tolerance * (idiomLow - instrument.rangeLow);
+  const targetHigh = idiomHigh + tolerance * (instrument.rangeHigh - idiomHigh);
 
   const pitches = melody.notes.map((n) => n.pitch).sort((a, b) => a - b);
   const median = pitches[Math.floor(pitches.length / 2)];
@@ -55,9 +83,10 @@ function pickIdiomaticOctaveShift(melody: Melody, instrument: InstrumentDef): nu
       return p < instrument.rangeLow || p > instrument.rangeHigh;
     }).length;
     // Staying within the instrument's technically-playable range always wins
-    // over getting closer to the idiomatic center — the idiomatic band is a
-    // preference within what's playable, not a license to go out of range.
-    const score = outOfTechnicalRange * 1000 + Math.abs(median + shift - targetCenter);
+    // over getting closer to the idiomatic band — the band (widened by
+    // ensemble-size tolerance) is a preference within what's playable, not a
+    // license to go out of range.
+    const score = outOfTechnicalRange * 1000 + distanceFromBand(median + shift, targetLow, targetHigh);
     if (score < bestScore) {
       bestScore = score;
       bestShift = shift;
@@ -227,7 +256,7 @@ export function assignRoles(
   const bassInstrument = pickBassInstrument(remaining);
   const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
 
-  const shift = pickIdiomaticOctaveShift(melody, melodyInstrument);
+  const shift = pickIdiomaticOctaveShift(melody, melodyInstrument, ensemble.length);
   const shiftedMelody: Melody = shift
     ? { ...melody, notes: melody.notes.map((n) => ({ ...n, pitch: n.pitch + shift, pitches: n.pitches?.map((p) => p + shift) })) }
     : melody;
