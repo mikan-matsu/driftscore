@@ -28,6 +28,17 @@ export interface InstrumentDef {
    */
   idiomaticLow?: number;
   idiomaticHigh?: number;
+  /**
+   * Idiomatic register to use specifically when this instrument is voicing
+   * harmony/comping rather than carrying the melody, for instruments whose
+   * comfortable register genuinely shifts by role (e.g. clarinet's chalumeau
+   * register — darker, blends better as an inner voice — vs. its clarion
+   * melody register). Falls back to `idiomaticLow`/`idiomaticHigh` when
+   * unset, since for most instruments here the "characteristic middle" is a
+   * reasonable harmony register too, not just a melody one.
+   */
+  harmonyIdiomaticLow?: number;
+  harmonyIdiomaticHigh?: number;
 }
 
 export const INSTRUMENTS: Record<string, InstrumentDef> = {
@@ -113,6 +124,12 @@ export const INSTRUMENTS: Record<string, InstrumentDef> = {
     // https://jennyclarinet.com/2024/04/the-range-and-registers-of-the-clarinet/
     idiomaticLow: 70, // D5 sounding (C5 written)
     idiomaticHigh: 82, // D6 sounding (C6 written)
+    // As a harmony/inner voice, the chalumeau register (written E3-F4) is the
+    // idiomatic choice instead — darker and better-blending than clarion,
+    // and naturally sits below where the melody instrument lives. Sounding
+    // (written-2): D3-D#4. https://jennyclarinet.com/2024/04/the-range-and-registers-of-the-clarinet/
+    harmonyIdiomaticLow: 50, // D3 sounding (E3 written)
+    harmonyIdiomaticHigh: 63, // D#4 sounding (F4 written)
   },
   trumpetBb: {
     id: "trumpetBb",

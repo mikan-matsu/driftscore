@@ -164,8 +164,17 @@ function renderHarmonyVoices(
   const style = STYLES[genre];
   const byRegister = [...instruments].sort((a, b) => b.rangeHigh - a.rangeHigh);
   const notesByInstrument = new Map<string, Note[]>(byRegister.map((i) => [i.id, []]));
+  // Seed voice-leading from each instrument's harmony-role idiomatic center
+  // (falling back to its melody-role idiomatic center, then the full
+  // technical range) rather than always the bare technical-range midpoint —
+  // subsequent notes follow via nearest-voice voice-leading below, so this
+  // seed is what actually anchors where the part tends to sit.
   const prevPitch = new Map<string, number>(
-    byRegister.map((i) => [i.id, Math.round((i.rangeLow + i.rangeHigh) / 2)]),
+    byRegister.map((i) => {
+      const low = i.harmonyIdiomaticLow ?? i.idiomaticLow ?? i.rangeLow;
+      const high = i.harmonyIdiomaticHigh ?? i.idiomaticHigh ?? i.rangeHigh;
+      return [i.id, Math.round((low + high) / 2)];
+    }),
   );
   let id = 0;
 
