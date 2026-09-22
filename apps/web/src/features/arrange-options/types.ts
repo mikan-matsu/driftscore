@@ -1,5 +1,7 @@
 export type Genre = "jazz" | "rock" | "classical" | "samba";
 
+export type SongForm = "theme" | "full";
+
 export interface ArrangeOptions {
   genre: Genre;
   /** 0 = 忠実なアレンジ, 100 = 大胆に崩す */
@@ -7,6 +9,8 @@ export interface ArrangeOptions {
   ensembleId: string;
   /** Pitch class 0-11 to transpose the melody's tonic to, or null to keep the melody's own key (auto-detected). */
   keyRoot: number | null;
+  /** "theme" = テーマ1回のみ(従来通り), "full" = イントロ〜エンディングのフル曲構成 */
+  songForm: SongForm;
 }
 
 /** Pitch-class labels for the key picker — major/minor isn't chosen here, it's
@@ -24,6 +28,11 @@ export const KEY_ROOTS: { id: number; label: string }[] = [
   { id: 9, label: "A" },
   { id: 10, label: "A#" },
   { id: 11, label: "B" },
+];
+
+export const SONG_FORMS: { id: SongForm; label: string }[] = [
+  { id: "theme", label: "テーマのみ" },
+  { id: "full", label: "フル構成" },
 ];
 
 export const GENRES: { id: Genre; label: string }[] = [

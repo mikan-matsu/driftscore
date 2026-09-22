@@ -8,6 +8,16 @@ export interface ChordSymbol {
   bar: number;
 }
 
+export type SectionKind = "intro" | "theme" | "solo" | "break" | "reprise" | "ending";
+
+/** A span of the full song form (intro/theme/solo/break/reprise/ending), in bars. */
+export interface Section {
+  kind: SectionKind;
+  /** 0-based, matches ChordSymbol.bar */
+  startBar: number;
+  barCount: number;
+}
+
 export interface ArrangementPart {
   id: string;
   name: string;
@@ -30,4 +40,6 @@ export interface Arrangement {
   /** id of the part carrying the original melody — chord symbols attach to this part */
   melodyPartId: string;
   parts: ArrangementPart[];
+  /** Song-form sections. A single [{kind:"theme", startBar:0, barCount:chords.length}] in "theme"-only mode. */
+  sections: Section[];
 }

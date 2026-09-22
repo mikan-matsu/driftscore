@@ -1,10 +1,14 @@
 import { estimateKey } from "./keyEstimation";
 import { estimateChordProgression } from "./chordProgression";
 import { assignRoles } from "./assignRoles";
+import { applyBreakHits } from "./breakHits";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
+import { buildSongForm } from "./songForm";
 import { applySwing } from "./swing";
 import { renderDrumPart } from "./drums";
-import type { Arrangement, ArrangementPart, Genre, Melody } from "./types";
+import type { Arrangement, ArrangementPart, Genre, Melody, Section } from "./types";
+
+export type SongForm = "theme" | "full";
 
 /**
  * Shifts every note by the smallest signed semitone distance that moves the
@@ -32,21 +36,40 @@ export function generateArrangement(
   distortion: number,
   ensembleId: string = DEFAULT_ENSEMBLE_ID,
   targetKeyRoot?: number | null,
+  songForm: SongForm = "theme",
 ): Arrangement {
   const preset = ENSEMBLE_PRESETS[ensembleId] ?? ENSEMBLE_PRESETS[DEFAULT_ENSEMBLE_ID];
   const detectedKey = estimateKey(inputMelody);
   const hasTargetKey = typeof targetKeyRoot === "number" && targetKeyRoot !== detectedKey.root;
   const melody = hasTargetKey ? transposeMelody(inputMelody, detectedKey.root, targetKeyRoot) : inputMelody;
   const key = hasTargetKey ? { root: targetKeyRoot, isMinor: detectedKey.isMinor } : detectedKey;
-  const chords = estimateChordProgression(melody, key);
+  const themeChords = estimateChordProgression(melody, key);
   const beatsPerBar = melody.beatsPerBar;
 
-  let parts = assignRoles(melody, chords, genre, distortion, preset.instruments, key);
+  let fullMelody = melody;
+  let chords = themeChords;
+  let sections: Section[] = [{ kind: "theme", startBar: 0, barCount: themeChords.length }];
+  if (songForm === "full") {
+    const form = buildSongForm(melody, themeChords, beatsPerBar, key, genre);
+    fullMelody = form.melody;
+    chords = form.chords;
+    sections = form.sections;
+  }
+
+  let parts = assignRoles(fullMelody, chords, genre, distortion, preset.instruments, key, sections);
   if (genre === "jazz") {
     parts = parts.map((part) => ({ ...part, melody: { ...part.melody, notes: applySwing(part.melody.notes) } }));
   }
 
-  const drumVoices = renderDrumPart(chords, genre, beatsPerBar);
+  let drumVoices = renderDrumPart(chords, genre, beatsPerBar);
+
+  const breakSection = sections.find((s) => s.kind === "break");
+  if (breakSection) {
+    const applied = applyBreakHits(parts, drumVoices, chords, breakSection, beatsPerBar);
+    parts = applied.parts;
+    drumVoices = applied.drumVoices;
+  }
+
   if (drumVoices) {
     const drumPart: ArrangementPart = {
       id: "drums",
@@ -68,5 +91,6 @@ export function generateArrangement(
     chords,
     melodyPartId: parts[0].id,
     parts,
+    sections,
   };
 }

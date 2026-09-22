@@ -1,5 +1,5 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { generateArrangement } from "./engine/generateArrangement";
+import { generateArrangement, type SongForm } from "./engine/generateArrangement";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./engine/ensembles";
 import type { Genre, Melody } from "./engine/types";
 
@@ -12,6 +12,8 @@ interface RequestBody {
   ensembleId?: string;
   /** Pitch class 0-11 to transpose the melody's tonic to, or omitted/null to keep its own key. */
   keyRoot?: number | null;
+  /** "full" for intro/theme/solo/break/reprise/ending; anything else (or omitted) keeps the existing single-pass theme arrangement. */
+  songForm?: string;
 }
 
 function isValidMelody(melody: unknown): melody is Melody {
@@ -38,8 +40,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     typeof body.keyRoot === "number" && Number.isInteger(body.keyRoot) && body.keyRoot >= 0 && body.keyRoot <= 11
       ? body.keyRoot
       : null;
+  const songForm: SongForm = body.songForm === "full" ? "full" : "theme";
 
-  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId, keyRoot);
+  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId, keyRoot, songForm);
 
   return {
     statusCode: 200,

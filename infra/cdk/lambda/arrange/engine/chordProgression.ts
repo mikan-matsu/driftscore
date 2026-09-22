@@ -1,10 +1,12 @@
 import type { ChordQuality, ChordSymbol, Melody } from "./types";
 import type { EstimatedKey } from "./keyEstimation";
 
-const MAJOR_DEGREES = [0, 2, 4, 5, 7, 9, 11];
-const MAJOR_QUALITIES: ChordQuality[] = ["maj", "min", "min", "maj", "maj", "min", "dim"];
-const MINOR_DEGREES = [0, 2, 3, 5, 7, 8, 10];
-const MINOR_QUALITIES: ChordQuality[] = ["min", "dim", "maj", "min", "min", "maj", "maj"];
+// Exported so other diatonic-progression logic (e.g. songForm.ts's intro/ending
+// vamps) can build on the same degree/quality tables instead of copying them.
+export const MAJOR_DEGREES = [0, 2, 4, 5, 7, 9, 11];
+export const MAJOR_QUALITIES: ChordQuality[] = ["maj", "min", "min", "maj", "maj", "min", "dim"];
+export const MINOR_DEGREES = [0, 2, 3, 5, 7, 8, 10];
+export const MINOR_QUALITIES: ChordQuality[] = ["min", "dim", "maj", "min", "min", "maj", "maj"];
 
 export function triadPitchClasses(rootPitchClass: number, quality: ChordQuality): number[] {
   const third = quality === "maj" ? 4 : 3;

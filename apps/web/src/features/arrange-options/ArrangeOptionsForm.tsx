@@ -1,6 +1,6 @@
 "use client";
 
-import { ENSEMBLES, GENRES, KEY_ROOTS, type ArrangeOptions } from "./types";
+import { ENSEMBLES, GENRES, KEY_ROOTS, SONG_FORMS, type ArrangeOptions } from "./types";
 
 export function ArrangeOptionsForm({
   value,
@@ -11,6 +11,25 @@ export function ArrangeOptionsForm({
 }) {
   return (
     <div className="flex flex-col gap-6 w-full">
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-slate-500 dark:text-slate-400">曲構成</span>
+        <div className="flex flex-wrap gap-2">
+          {SONG_FORMS.map((form) => (
+            <button
+              key={form.id}
+              type="button"
+              onClick={() => onChange({ ...value, songForm: form.id })}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                value.songForm === form.id
+                  ? "bg-blue-400 text-white"
+                  : "border border-slate-200 text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              {form.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="flex flex-col gap-2">
         <span className="text-sm text-slate-500 dark:text-slate-400">ジャンル</span>
         <div className="flex flex-wrap gap-2">

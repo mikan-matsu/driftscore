@@ -5,7 +5,7 @@ import { STYLES, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
 import type { EstimatedKey } from "./keyEstimation";
 import { renderParallelHarmony } from "./parallelHarmony";
-import type { ArrangementPart, ChordSymbol, Genre, Melody, Note } from "./types";
+import type { ArrangementPart, ChordSymbol, Genre, Melody, Note, Section } from "./types";
 
 const DEFAULT_CEILING = 84; // fallback comping ceiling for bars with no melody note (e.g. a rest)
 
@@ -162,6 +162,32 @@ function clearOverlaps(notes: Note[], other: Note[], direction: "below" | "above
   });
 }
 
+/**
+ * Where the harmony line (ハモリ) and countermelody textures are each active,
+ * in beats. In song-form mode (a "reprise" section exists), harmony is
+ * reserved for the reprise and countermelody for the theme's own rests —
+ * texture builds toward the reprise instead of appearing throughout. With no
+ * "reprise" section (plain "theme"-only mode), this falls back to the
+ * original whole-piece-halved split so that mode's output is unchanged.
+ */
+function textureRanges(
+  sections: Section[] | undefined,
+  beatsPerBar: number,
+  chordsLength: number,
+): { harmonyFromBeat: number; countermelodyFromBeat: number; countermelodyUntilBeat: number } {
+  const reprise = sections?.find((s) => s.kind === "reprise");
+  const theme = sections?.find((s) => s.kind === "theme");
+  if (reprise && theme) {
+    return {
+      harmonyFromBeat: reprise.startBar * beatsPerBar,
+      countermelodyFromBeat: theme.startBar * beatsPerBar,
+      countermelodyUntilBeat: (theme.startBar + theme.barCount) * beatsPerBar,
+    };
+  }
+  const halfBeat = Math.floor(chordsLength / 2) * beatsPerBar;
+  return { harmonyFromBeat: halfBeat, countermelodyFromBeat: 0, countermelodyUntilBeat: halfBeat };
+}
+
 function pickMelodyInstrument(ensemble: InstrumentDef[]): InstrumentDef {
   return ensemble.find((i) => i.roleAffinity === "melody") ?? ensemble[0];
 }
@@ -251,6 +277,7 @@ export function assignRoles(
   distortion: number,
   ensemble: InstrumentDef[],
   key: EstimatedKey,
+  sections?: Section[],
 ): ArrangementPart[] {
   const beatsPerBar = melody.beatsPerBar;
   const melodyInstrument = pickMelodyInstrument(ensemble);
@@ -294,14 +321,15 @@ export function assignRoles(
   const restHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
 
   // Real arrangements don't harmonize or answer the melody constantly —
-  // texture builds over the piece. Split it in half: the first half gets a
-  // sparser call-and-response countermelody filling the melody's rests
-  // (when there's a spare voice for it), the second half adds a parallel
-  // diatonic-third harmony line under the melody (the simplest, most common
-  // "ハモリ") — the two textures don't overlap, so neither instrument is
-  // both harmonizing AND answering at once. Instruments not on either duty
-  // just comp throughout, as before.
-  const halfBeat = Math.floor(chords.length / 2) * beatsPerBar;
+  // texture builds over the piece. The countermelody (call-and-response
+  // filling the melody's rests, when there's a spare voice for it) and the
+  // harmony line (parallel diatonic-third "ハモリ") are reserved for
+  // different, non-overlapping spans — see textureRanges().
+  const { harmonyFromBeat, countermelodyFromBeat, countermelodyUntilBeat } = textureRanges(
+    sections,
+    beatsPerBar,
+    chords.length,
+  );
 
   // Highest-register monophonic harmony instrument — closest to the
   // melody's own register — carries the harmony line in the second half.
@@ -333,12 +361,23 @@ export function assignRoles(
           renderParallelHarmony(melodyPart.melody, key),
           instrument.rangeLow,
           instrument.rangeHigh,
-        ).notes.filter((n) => n.start >= halfBeat);
-        notes = [...comping.filter((n) => n.start < halfBeat), ...harmonyLine];
+        ).notes.filter((n) => n.start >= harmonyFromBeat);
+        notes = [...comping.filter((n) => n.start < harmonyFromBeat), ...harmonyLine];
       } else if (instrument.id === countermelodyInstrument?.id) {
         const startingPitch = Math.round(((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2);
-        const answers = renderCountermelody(melodyPart.melody.notes, chords, beatsPerBar, halfBeat, startingPitch);
-        notes = [...answers, ...comping.filter((n) => n.start >= halfBeat)];
+        const answers = renderCountermelody(
+          melodyPart.melody.notes,
+          chords,
+          beatsPerBar,
+          countermelodyUntilBeat,
+          startingPitch,
+          countermelodyFromBeat,
+        );
+        notes = [
+          ...comping.filter((n) => n.start < countermelodyFromBeat),
+          ...answers,
+          ...comping.filter((n) => n.start >= countermelodyUntilBeat),
+        ];
       }
 
       harmonyParts.push({

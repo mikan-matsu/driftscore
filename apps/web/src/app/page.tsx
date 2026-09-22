@@ -13,7 +13,13 @@ const API_URL = process.env.NEXT_PUBLIC_ARRANGE_API_URL ?? "";
 export default function Home() {
   const [step, setStep] = useState<Step>("pick");
   const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
-  const [options, setOptions] = useState<ArrangeOptions>({ genre: "jazz", distortion: 30, ensembleId: "pianoTrio", keyRoot: null });
+  const [options, setOptions] = useState<ArrangeOptions>({
+    genre: "jazz",
+    distortion: 30,
+    ensembleId: "pianoTrio",
+    keyRoot: null,
+    songForm: "theme",
+  });
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -47,6 +53,7 @@ export default function Home() {
           distortion: options.distortion,
           ensembleId: options.ensembleId,
           keyRoot: options.keyRoot,
+          songForm: options.songForm,
         }),
       });
       if (!res.ok) throw new Error(`arrange API returned ${res.status}`);

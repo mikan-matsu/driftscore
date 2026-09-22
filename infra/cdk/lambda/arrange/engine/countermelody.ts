@@ -10,9 +10,11 @@ import type { ChordSymbol, Note } from "./types";
  * line) — this only speaks when the melody doesn't, which is also what
  * keeps it from being present constantly: real rests are intermittent by
  * nature, so this texture comes and goes with the melody's own phrasing.
- * Only fills rests before `activeUntilBeat`, since the caller reserves this
- * texture for one section of the piece (see assignRoles.ts) rather than
- * running it the whole way through.
+ * Only fills rests within [activeFromBeat, activeUntilBeat), since the
+ * caller reserves this texture for one section of the piece (see
+ * assignRoles.ts) rather than running it the whole way through — a long
+ * rest before activeFromBeat (e.g. a song-form intro with no melody at all)
+ * must not be read as one giant gap to fill.
  */
 export function renderCountermelody(
   melodyNotes: Note[],
@@ -20,11 +22,12 @@ export function renderCountermelody(
   beatsPerBar: number,
   activeUntilBeat: number,
   startingPitch: number,
+  activeFromBeat = 0,
 ): Note[] {
   const sorted = [...melodyNotes].sort((a, b) => a.start - b.start);
   const notes: Note[] = [];
   let id = 0;
-  let cursor = 0;
+  let cursor = activeFromBeat;
   let prev = startingPitch;
 
   const fillGap = (gapStart: number, gapEnd: number) => {

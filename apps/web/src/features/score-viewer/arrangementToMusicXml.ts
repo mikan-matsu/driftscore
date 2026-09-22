@@ -1,6 +1,19 @@
 import type { Melody, Note } from "@/features/piano-roll";
-import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol } from "./arrangementTypes";
+import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol, Section, SectionKind } from "./arrangementTypes";
 import { DRUM_DISPLAY } from "./percussionMap";
+
+const SECTION_LABELS: Record<SectionKind, string> = {
+  intro: "イントロ",
+  theme: "Aメロ",
+  solo: "ソロ",
+  break: "キメ",
+  reprise: "Aメロ",
+  ending: "エンディング",
+};
+
+function rehearsalXml(label: string): string {
+  return `<direction placement="above"><direction-type><rehearsal>${label}</rehearsal></direction-type></direction>`;
+}
 
 const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
 const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
@@ -152,6 +165,7 @@ function partMeasuresXml(
   beatsPerBar: number,
   measureCount: number,
   chordsPerMeasure?: ChordSymbol[],
+  sectionLabelForMeasure?: Map<number, string>,
 ): string {
   const isPercussion = part.clef === "percussion";
   const hasSecondVoice = !!part.secondaryVoice;
@@ -181,8 +195,9 @@ function partMeasuresXml(
           ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}${transposeXml(part.transposeSemitones)}</attributes>`
           : "";
       const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
+      const rehearsal = sectionLabelForMeasure?.has(i) ? rehearsalXml(sectionLabelForMeasure.get(i)!) : "";
       const secondVoiceXml = hasSecondVoice ? backupXml + (secondMeasures[i]?.join("") ?? "") : "";
-      return `<measure number="${i + 1}">${attrs}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
+      return `<measure number="${i + 1}">${attrs}${rehearsal}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
     })
     .join("");
 }
@@ -192,13 +207,23 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
   const measureCounts = arrangement.parts.map((p) => melodyToMeasures(p.melody).length);
   const measureCount = Math.max(1, ...measureCounts);
 
+  // Rehearsal marks (section labels) go on the top staff only, like a real
+  // conductor's score — and only when there's more than the trivial single
+  // "theme" section a theme-only-mode arrangement has, so that mode's output
+  // is unchanged.
+  const sectionLabelForMeasure: Map<number, string> | undefined =
+    arrangement.sections.length > 1
+      ? new Map(arrangement.sections.map((s: Section) => [s.startBar, SECTION_LABELS[s.kind]]))
+      : undefined;
+
   const partList = arrangement.parts
     .map((p) => `<score-part id="${p.id}"><part-name>${p.name}</part-name></score-part>`)
     .join("");
   const parts = arrangement.parts
-    .map((p) => {
+    .map((p, i) => {
       const chordsPerMeasure = p.id === arrangement.melodyPartId ? arrangement.chords : undefined;
-      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure)}</part>`;
+      const labels = i === 0 ? sectionLabelForMeasure : undefined;
+      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels)}</part>`;
     })
     .join("");
 
