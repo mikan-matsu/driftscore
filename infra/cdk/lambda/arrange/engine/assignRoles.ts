@@ -3,6 +3,7 @@ import { embellishMelody } from "./embellishMelody";
 import { STYLES, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
 import type { EstimatedKey } from "./keyEstimation";
+import { renderParallelHarmony } from "./parallelHarmony";
 import type { ArrangementPart, ChordSymbol, Genre, Melody, Note } from "./types";
 
 const DEFAULT_CEILING = 84; // fallback comping ceiling for bars with no melody note (e.g. a rest)
@@ -289,7 +290,34 @@ export function assignRoles(
 
   const harmonyParts: ArrangementPart[] = [];
   const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
-  const monoHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
+  const restHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
+
+  // The highest-register monophonic harmony instrument — the one closest to
+  // the melody's own register — shadows it with a parallel diatonic-third
+  // harmony line instead of the genre's chord-tone comping pattern; this is
+  // the simplest, most common form of "ハモリ" (close two-part harmony). Any
+  // remaining monophonic harmony instruments keep comping as before. Skipped
+  // entirely when there's no monophonic harmony instrument (e.g. piano
+  // trio, clarinet/guitar/bass) — a chordal (polyphonic) instrument doesn't
+  // fit this role, since it already voices full chords under the melody.
+  const harmonyLineInstrument =
+    restHarmony.length > 0 ? restHarmony.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
+  const monoHarmony = restHarmony.filter((i) => i.id !== harmonyLineInstrument?.id);
+
+  if (harmonyLineInstrument) {
+    harmonyParts.push({
+      id: harmonyLineInstrument.id,
+      name: harmonyLineInstrument.name,
+      clef: harmonyLineInstrument.clef,
+      transposeSemitones: harmonyLineInstrument.transposeSemitones,
+      polyphonic: harmonyLineInstrument.polyphonic,
+      melody: foldMelodyToRange(
+        renderParallelHarmony(melodyPart.melody, key),
+        harmonyLineInstrument.rangeLow,
+        harmonyLineInstrument.rangeHigh,
+      ),
+    });
+  }
 
   for (const instrument of polyHarmony) {
     const lows = bassFloors.map((f) => Math.max(instrument.rangeLow, f));
