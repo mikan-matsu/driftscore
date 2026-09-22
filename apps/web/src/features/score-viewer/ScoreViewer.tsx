@@ -42,12 +42,16 @@ export function ScoreViewer({
           drawTitle: Boolean(title),
           cursorsOptions: [{ type: 1, color: "#60a5fa", alpha: 1, follow: true }],
           // Real A4 pages with page breaks (not one endless horizontal
-          // strip) — "フル版" score look, pages laid out side by side via
-          // the flex-wrap container below, like spreading printed pages out
-          // on a desk.
+          // strip) — "フル版" score look, pages laid out in a single
+          // horizontally-scrolling row (see the container below), like
+          // spreading printed pages out side by side on a desk.
           pageFormat: "A4_P",
           pageBackgroundColor: "#FFFFFF",
         });
+        // Smaller notation so more of a page (and more pages at once) fits
+        // on screen without scrolling — full ensemble scores read fine
+        // small since the user mainly scans it, doesn't need engraving-size notation.
+        osmd.zoom = 0.6;
         // Cap measures per system so a line never grows wide enough to
         // become hard to scan — 4 bars/line is the readable default for a
         // full ensemble score; OSMD's own fit-to-page logic can still use
@@ -81,10 +85,10 @@ export function ScoreViewer({
         <p className="p-4 text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : (
         // OSMD (in paged mode) renders one <svg> per A4 page as a sibling
-        // inside this div — flex-wrap lays multiple pages out side by side,
-        // like a real printed score spread, instead of stacking them in one
-        // long vertical scroll.
-        <div ref={containerRef} className="flex flex-wrap justify-center gap-4" />
+        // inside this div — a single non-wrapping flex row lays every page
+        // out side by side left-to-right, scrolled horizontally via the
+        // outer div's overflow-x-auto, like flipping through a real score.
+        <div ref={containerRef} className="flex flex-row flex-nowrap gap-4" />
       )}
     </div>
   );
