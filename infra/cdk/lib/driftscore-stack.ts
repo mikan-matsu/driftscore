@@ -129,5 +129,7 @@ export class DriftscoreStack extends cdk.Stack {
     );
 
     new cdk.CfnOutput(this, 'GitHubActionsDeployRoleArn', { value: githubDeployRole.roleArn });
+
+    cdk.Tags.of(this).add('Project', 'driftscore');
   }
 }
