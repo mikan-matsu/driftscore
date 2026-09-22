@@ -331,7 +331,17 @@ export function ScoreViewer({
             ref={containerRef}
             onMouseDown={handlePointerDown}
             onDoubleClick={handleDoubleClick}
-            className="grid gap-4 justify-center"
+            // `justify-center` used to be here, but centering grid content
+            // that's wider than the scrollable container clips its left
+            // edge permanently: the browser centers the overflow evenly on
+            // both sides, and since scrollLeft can never go negative, the
+            // portion pushed to the left of the initial scroll position
+            // becomes unreachable (this cut off the score's title, which
+            // OSMD draws starting partway across page 1 — see project
+            // memory for the repro). Left-aligned instead, which also
+            // matches how a score is actually read: start at measure 1,
+            // scroll right to continue.
+            className="grid gap-4"
             style={{ zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
           />
         </>
