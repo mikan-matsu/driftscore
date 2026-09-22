@@ -275,10 +275,15 @@ function renderHarmonyVoices(
     const pattern = style.chordPatterns[barIndex % style.chordPatterns.length];
     const ceiling = ceilings[barIndex];
     const low = lows[barIndex];
+    const measureEnd = (chord.bar + 1) * beatsPerBar;
 
     for (const event of pattern) {
       const voiceCount = Math.min(byRegister.length, tones.length);
       let above = ceiling;
+      const start = chord.bar * beatsPerBar + event.offset;
+      let duration = event.duration;
+      // Clamp duration to not exceed measure boundary (handles floating-point accumulation)
+      if (start + duration > measureEnd) duration = measureEnd - start;
       for (let i = 0; i < voiceCount; i++) {
         const instrument = byRegister[i];
         const pc = tones[tones.length - 1 - i];
@@ -308,8 +313,8 @@ function renderHarmonyVoices(
         notesByInstrument.get(instrument.id)!.push({
           id: `h${id++}`,
           pitch,
-          start: chord.bar * beatsPerBar + event.offset,
-          duration: event.duration,
+          start,
+          duration,
           velocity: 85,
         });
         above = pitch;

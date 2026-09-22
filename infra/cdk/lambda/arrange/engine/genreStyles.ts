@@ -193,14 +193,19 @@ function renderPatterns(
     const stack = chordToneStack(chord, useSeventh, ceilings[barIndex], lows[barIndex], prevVoicing);
     prevVoicing = stack;
     const pattern = patterns[barIndex % patterns.length];
+    const measureEnd = (chord.bar + 1) * beatsPerBar;
     for (const event of pattern) {
       const pitches = event.tones.map((i) => stack[Math.min(i, stack.length - 1)]).sort((a, b) => a - b);
+      const start = chord.bar * beatsPerBar + event.offset;
+      let duration = event.duration;
+      // Clamp duration to not exceed measure boundary (handles floating-point accumulation)
+      if (start + duration > measureEnd) duration = measureEnd - start;
       notes.push({
         id: `n${id++}`,
         pitch: pitches[0],
         pitches: pitches.length > 1 ? pitches : undefined,
-        start: chord.bar * beatsPerBar + event.offset,
-        duration: event.duration,
+        start,
+        duration,
         velocity: 90,
       });
     }
@@ -239,14 +244,19 @@ function renderBassPatterns(patterns: BarEvent[][], chords: ChordSymbol[], beats
   chords.forEach((chord, barIndex) => {
     const stack = bassToneStack(chord, octaveBase);
     const pattern = patterns[barIndex % patterns.length];
+    const measureEnd = (chord.bar + 1) * beatsPerBar;
     for (const event of pattern) {
       const pitches = event.tones.map((i) => stack[Math.min(i, stack.length - 1)]).sort((a, b) => a - b);
+      const start = chord.bar * beatsPerBar + event.offset;
+      let duration = event.duration;
+      // Clamp duration to not exceed measure boundary (handles floating-point accumulation)
+      if (start + duration > measureEnd) duration = measureEnd - start;
       notes.push({
         id: `b${id++}`,
         pitch: pitches[0],
         pitches: pitches.length > 1 ? pitches : undefined,
-        start: chord.bar * beatsPerBar + event.offset,
-        duration: event.duration,
+        start,
+        duration,
         velocity: 90,
       });
     }
