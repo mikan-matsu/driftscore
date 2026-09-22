@@ -97,6 +97,22 @@ function pitchName(midiPitch: number): string {
  * staff units (that depends on the note's diatonic position/accidentals). Re-tune if either zoom changes. */
 const PX_PER_SEMITONE = 6;
 
+/** Cycle of selectable note durations in beats (16th through whole note), for double-click
+ * duration editing. Matches the base durations arrangementToMusicXml.ts's noteTypeAndDots()
+ * already knows how to render (it also handles the *1.5 dotted variant of each, but dotted
+ * values aren't offered here to keep the double-click cycle short and predictable). */
+const DURATION_STEPS = [0.25, 0.5, 1, 2, 4];
+
+/** Next duration in DURATION_STEPS after `current`, wrapping around, but never exceeding
+ * `maxDuration` (the gap to the next note, so a duration change never overlaps a neighbor) —
+ * wraps to the shortest step instead when every longer step would overlap. */
+function nextDuration(current: number, maxDuration: number): number {
+  const candidates = DURATION_STEPS.filter((d) => d <= maxDuration + 1e-9);
+  if (candidates.length === 0) return DURATION_STEPS[0];
+  const currentIndex = candidates.findIndex((d) => Math.abs(d - current) < 1e-9);
+  return candidates[(currentIndex + 1) % candidates.length];
+}
+
 interface DragState {
   partId: string;
   note: Note;
@@ -111,6 +127,7 @@ export function ScoreViewer({
   onCursorReady,
   onNoteClick,
   onNoteEdit,
+  onNoteDurationEdit,
 }: {
   musicXml: string;
   title?: string;
@@ -119,6 +136,8 @@ export function ScoreViewer({
   onNoteClick?: (partId: string, note: Note) => void;
   /** Called once, on mouse-up, if a drag actually changed the note's pitch. */
   onNoteEdit?: (partId: string, note: Note, newPitch: number) => void;
+  /** Called on double-click, cycling the note's duration (see nextDuration()). */
+  onNoteDurationEdit?: (partId: string, note: Note, newDuration: number) => void;
   onCursorReady?: (cursor: ScoreCursor | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -252,6 +271,21 @@ export function ScoreViewer({
     }
   }
 
+  // Double-click cycles the note's duration (see nextDuration()), clamped to
+  // not overlap the next note in the same part's melody (by start time).
+  function handleDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    const resolved = resolveAtClientPoint(e.clientX, e.clientY);
+    if (!resolved || !arrangement) return;
+    const part = arrangement.parts.find((p) => p.id === resolved.partId);
+    if (!part) return;
+    const laterStarts = part.melody.notes.map((n) => n.start).filter((s) => s > resolved.note.start);
+    const maxDuration = laterStarts.length > 0 ? Math.min(...laterStarts) - resolved.note.start : 4;
+    const newDuration = nextDuration(resolved.note.duration, maxDuration);
+    if (newDuration !== resolved.note.duration) {
+      onNoteDurationEdit?.(resolved.partId, resolved.note, newDuration);
+    }
+  }
+
   // Drag can end (mouseup) or continue (mousemove) after the cursor has left
   // the score container — e.g. a fast upward drag off the top edge — so
   // these listen on the whole window rather than just the container div,
@@ -296,6 +330,7 @@ export function ScoreViewer({
           <div
             ref={containerRef}
             onMouseDown={handlePointerDown}
+            onDoubleClick={handleDoubleClick}
             className="grid gap-4 justify-center"
             style={{ zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
           />

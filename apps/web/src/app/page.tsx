@@ -11,11 +11,11 @@ type Step = "pick" | "options" | "result";
 
 const API_URL = process.env.NEXT_PUBLIC_ARRANGE_API_URL ?? "";
 
-/** Applies a drag-to-edit pitch change (from ScoreViewer's onNoteEdit) to one note within one
- * part's melody, without touching anything else — the arrangement's other parts/notes, chord
- * symbols, and sections are untouched, so no fresh /arrange API round-trip is needed for a
- * single-note pitch edit. Matches the note by id (unique within one part's own melody). */
-function editNotePitch(arrangement: Arrangement, partId: string, note: Note, newPitch: number): Arrangement {
+/** Applies a single-note edit (pitch drag or duration double-click, from ScoreViewer's onNoteEdit /
+ * onNoteDurationEdit) to one note within one part's melody, without touching anything else — the
+ * arrangement's other parts/notes, chord symbols, and sections are untouched, so no fresh /arrange
+ * API round-trip is needed. Matches the note by id (unique within one part's own melody). */
+function updateNote(arrangement: Arrangement, partId: string, noteId: string, changes: Partial<Note>): Arrangement {
   return {
     ...arrangement,
     parts: arrangement.parts.map((part) =>
@@ -24,7 +24,7 @@ function editNotePitch(arrangement: Arrangement, partId: string, note: Note, new
             ...part,
             melody: {
               ...part.melody,
-              notes: part.melody.notes.map((n) => (n.id === note.id ? { ...n, pitch: newPitch } : n)),
+              notes: part.melody.notes.map((n) => (n.id === noteId ? { ...n, ...changes } : n)),
             },
           }
         : part,
@@ -210,14 +210,18 @@ export default function Home() {
                   onCursorReady={setCursor}
                   onNoteClick={(partId, note) => setSelectedNote({ partId, note })}
                   onNoteEdit={(partId, note, newPitch) => {
-                    setArrangement((prev) => (prev ? editNotePitch(prev, partId, note, newPitch) : prev));
+                    setArrangement((prev) => (prev ? updateNote(prev, partId, note.id, { pitch: newPitch }) : prev));
                     setSelectedNote({ partId, note: { ...note, pitch: newPitch } });
+                  }}
+                  onNoteDurationEdit={(partId, note, newDuration) => {
+                    setArrangement((prev) => (prev ? updateNote(prev, partId, note.id, { duration: newDuration }) : prev));
+                    setSelectedNote({ partId, note: { ...note, duration: newDuration } });
                   }}
                 />
                 {selectedNote && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     選択中の音符: {arrangement.parts.find((p) => p.id === selectedNote.partId)?.name ?? selectedNote.partId} / pitch{" "}
-                    {selectedNote.note.pitch} / beat {selectedNote.note.start}
+                    {selectedNote.note.pitch} / beat {selectedNote.note.start} / 長さ {selectedNote.note.duration}拍(ダブルクリックで変更)
                   </p>
                 )}
               </div>
