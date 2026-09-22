@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Note } from "@/features/piano-roll";
+import type { Arrangement } from "./arrangementTypes";
 
 /** Minimal surface of OSMD's cursor we need to drive playback sync, kept local so callers don't need the full OSMD type. */
 export interface ScoreCursor {
@@ -25,6 +27,17 @@ interface OsmdGraphicalNote {
     getAbsoluteTimestamp(): { RealValue: number };
   };
   setColor(color: string, options: Record<string, never>): void;
+  // Chain used to trace a clicked GraphicalNote back to which of our own
+  // ArrangementParts it belongs to — see resolveClickedNote() below.
+  parentVoiceEntry: {
+    parentStaffEntry: {
+      parentMeasure: {
+        ParentStaff: {
+          ParentInstrument: { IdString: string };
+        };
+      };
+    };
+  };
 }
 
 /** Minimal surface of OSMD's own instance we need for click-to-note hit-testing (see project memory
@@ -39,13 +52,48 @@ interface OsmdInstance {
   };
 }
 
+/**
+ * Traces a clicked GraphicalNote back to the underlying (partId, Note) it
+ * came from. OSMD's parsed model has no reference to the MusicXML note `id`
+ * (see project memory `project_osmd_note_id_finding`), so this instead
+ * addresses by (part, pitch, absolute beat) — the instrument's MusicXML
+ * part-id (`ParentInstrument.IdString`, which arrangementToMusicXml.ts sets
+ * to our own ArrangementPart.id) plus a pitch+timestamp match within that
+ * part's Melody, which is self-verifying (a mismatch means "not found"
+ * rather than silently resolving the wrong note).
+ *
+ * OSMD's `Pitch.halfTone` is a full octave (12 semitones) below the
+ * equivalent MIDI note number (OSMD's octave 0 = MIDI octave -1) — confirmed
+ * empirically in-browser: the tonic note of a C-major melody resolved to
+ * halfTone 48, i.e. MIDI 60 (C4) minus 12.
+ */
+function resolveClickedNote(graphicalNote: OsmdGraphicalNote, arrangement: Arrangement): { partId: string; note: Note } | null {
+  const halfTone = graphicalNote.sourceNote.Pitch?.halfTone;
+  if (halfTone === undefined) return null; // unpitched (percussion) — not resolvable this way yet
+  const midiPitch = halfTone + 12;
+  // getAbsoluteTimestamp() is a whole-note fraction (1.0 = one whole note)
+  // regardless of time signature — *4 converts to quarter-note beats, which
+  // is the unit our own Note.start/duration are always in.
+  const beats = graphicalNote.sourceNote.getAbsoluteTimestamp().RealValue * 4;
+  const partId = graphicalNote.parentVoiceEntry.parentStaffEntry.parentMeasure.ParentStaff.ParentInstrument.IdString;
+  const part = arrangement.parts.find((p) => p.id === partId);
+  if (!part) return null;
+  const note = part.melody.notes.find((n) => Math.abs(n.pitch - midiPitch) < 0.5 && Math.abs(n.start - beats) < 0.01);
+  return note ? { partId, note } : null;
+}
+
 export function ScoreViewer({
   musicXml,
   title,
+  arrangement,
   onCursorReady,
+  onNoteClick,
 }: {
   musicXml: string;
   title?: string;
+  /** When given, enables click-to-select: a click resolves to the underlying Note via resolveClickedNote(). */
+  arrangement?: Arrangement;
+  onNoteClick?: (partId: string, note: Note) => void;
   onCursorReady?: (cursor: ScoreCursor | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,20 +168,24 @@ export function ScoreViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicXml, title]);
 
-  // Click-to-select proof of concept (see project memory
-  // `project_osmd_note_id_finding`): OSMD never carries the MusicXML <note
-  // id> into its internal model, so a click is resolved purely through
-  // OSMD's own coordinate-conversion (domToSvg/svgToOsmd, page-relative —
-  // handles our multi-page CSS grid layout automatically since each page is
-  // its own backend) and GetNearestNote() APIs, not by DOM id lookup.
+  // Click-to-select (see project memory `project_osmd_note_id_finding`):
+  // OSMD never carries the MusicXML <note id> into its internal model, so a
+  // click is resolved through OSMD's own coordinate-conversion
+  // (domToSvg/svgToOsmd, page-relative — handles our multi-page CSS grid
+  // layout automatically since each page is its own backend) and
+  // GetNearestNote(), then traced back to our own Note via
+  // resolveClickedNote() (pitch+timestamp match, not a DOM id).
   function handleContainerClick(e: React.MouseEvent<HTMLDivElement>) {
     const osmd = osmdRef.current;
     if (!osmd) return;
     const svgPoint = osmd.GraphicSheet.domToSvg({ x: e.clientX, y: e.clientY });
     const osmdPoint = osmd.GraphicSheet.svgToOsmd(svgPoint);
-    const note = osmd.GraphicSheet.GetNearestNote(osmdPoint, { x: 2, y: 2 });
-    if (!note) return;
-    note.setColor("#e11d48", {});
+    const graphicalNote = osmd.GraphicSheet.GetNearestNote(osmdPoint, { x: 2, y: 2 });
+    if (!graphicalNote) return;
+    graphicalNote.setColor("#e11d48", {});
+    if (!arrangement) return;
+    const resolved = resolveClickedNote(graphicalNote, arrangement);
+    if (resolved) onNoteClick?.(resolved.partId, resolved.note);
   }
 
   return (

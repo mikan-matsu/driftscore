@@ -5,6 +5,7 @@ import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
+import type { Note } from "@/features/piano-roll";
 
 type Step = "pick" | "options" | "result";
 
@@ -25,6 +26,11 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  // Click-to-select on the rendered score (see project memory
+  // `project_osmd_note_id_finding`) — first slice of the planned drag-edit
+  // notation UI; editing itself isn't wired up yet, this just surfaces what
+  // got resolved so the click-to-note path is visibly working end to end.
+  const [selectedNote, setSelectedNote] = useState<{ partId: string; note: Note } | null>(null);
   // Guards against a slower, older /arrange request resolving after a newer
   // one (e.g. the user reselects a song and regenerates before the first
   // response lands) and overwriting the newer arrangement with stale data —
@@ -62,6 +68,7 @@ export default function Home() {
       if (requestId !== generationIdRef.current) return;
       setArrangement(data.arrangement);
       setSelectedPartId(null);
+      setSelectedNote(null);
       setStatus("done");
     } catch {
       if (requestId !== generationIdRef.current) return;
@@ -178,8 +185,16 @@ export default function Home() {
                 <ScoreViewer
                   musicXml={arrangementToMusicXml(arrangement, selectedSong?.title, selectedPartId ?? undefined)}
                   title={selectedSong?.title}
+                  arrangement={arrangement}
                   onCursorReady={setCursor}
+                  onNoteClick={(partId, note) => setSelectedNote({ partId, note })}
                 />
+                {selectedNote && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    選択中の音符: {arrangement.parts.find((p) => p.id === selectedNote.partId)?.name ?? selectedNote.partId} / pitch{" "}
+                    {selectedNote.note.pitch} / beat {selectedNote.note.start}
+                  </p>
+                )}
               </div>
             )}
           </section>
