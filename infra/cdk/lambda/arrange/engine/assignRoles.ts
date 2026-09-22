@@ -217,6 +217,7 @@ function renderHarmonyVoices(
   instruments: InstrumentDef[],
   ceilings: number[],
   lows: number[],
+  ensembleSize: number,
 ): Map<string, Note[]> {
   const style = STYLES[genre];
   const byRegister = [...instruments].sort((a, b) => b.rangeHigh - a.rangeHigh);
@@ -231,6 +232,25 @@ function renderHarmonyVoices(
       const low = i.harmonyIdiomaticLow ?? i.idiomaticLow ?? i.rangeLow;
       const high = i.harmonyIdiomaticHigh ?? i.idiomaticHigh ?? i.rangeHigh;
       return [i.id, Math.round((low + high) / 2)];
+    }),
+  );
+  // Same per-instrument harmony-role idiomatic band used to seed prevPitch
+  // above, widened by the same small-ensemble tolerance the melody-octave
+  // picker uses (idiomaticTolerance) — kept per-instrument here since each
+  // voice in a harmony/bass stack has its own band, unlike the single
+  // melody phrase pickIdiomaticOctaveShift handles.
+  const tolerance = idiomaticTolerance(ensembleSize);
+  const idiomBands = new Map<string, { low: number; high: number }>(
+    byRegister.map((i) => {
+      const idiomLow = i.harmonyIdiomaticLow ?? i.idiomaticLow ?? i.rangeLow;
+      const idiomHigh = i.harmonyIdiomaticHigh ?? i.idiomaticHigh ?? i.rangeHigh;
+      return [
+        i.id,
+        {
+          low: idiomLow - tolerance * (idiomLow - i.rangeLow),
+          high: idiomHigh + tolerance * (i.rangeHigh - idiomHigh),
+        },
+      ];
     }),
   );
   let id = 0;
@@ -254,6 +274,15 @@ function renderHarmonyVoices(
         pitch = foldToRange(pitch, instrument.rangeLow, instrument.rangeHigh);
         while (pitch >= above) pitch -= 12; // ceiling wins even if it means dipping below the instrument's nominal low end
         while (pitch < low && pitch + 12 < above) pitch += 12; // then try to clear the bass too, without breaking the ceiling
+        // Nearest-voice voice-leading can drift the part away from its
+        // idiomatic register over a stretch of low ceilings/high floors and
+        // then never find its way back once the constraint eases, since
+        // each note only looks at the previous one. Nudge it a whole octave
+        // toward the idiomatic band when room allows — ceiling/floor still
+        // win outright, this only ever fires when both are still satisfied.
+        const band = idiomBands.get(instrument.id)!;
+        while (pitch < band.low && pitch + 12 <= band.high && pitch + 12 < above && pitch + 12 >= low) pitch += 12;
+        while (pitch > band.high && pitch - 12 >= band.low && pitch - 12 >= low && pitch - 12 < above) pitch -= 12;
         prevPitch.set(instrument.id, pitch);
         notesByInstrument.get(instrument.id)!.push({
           id: `h${id++}`,
@@ -300,6 +329,14 @@ export function assignRoles(
   };
   const ceilings = computeMelodyCeilings(chords, melodyPart.melody.notes, beatsPerBar);
 
+  // renderBassPart's octave is a fixed genre-style constant
+  // (STYLES[genre].bassOctaveBase), the same for every instrument — without
+  // this, an electric bass, tuba, and bassoon playing the same bass line all
+  // landed in whatever register that one constant happened to fold into,
+  // rather than each instrument's own idiomatic bass register (e.g. bassoon
+  // sits comfortably higher than tuba). Reuses the same whole-phrase octave
+  // picker as the melody instrument, just with the bass instrument's own
+  // idiomaticLow/High band.
   const bassPart: ArrangementPart | null = bassInstrument
     ? {
         id: bassInstrument.id,
@@ -307,11 +344,14 @@ export function assignRoles(
         clef: bassInstrument.clef,
         transposeSemitones: bassInstrument.transposeSemitones,
         polyphonic: bassInstrument.polyphonic,
-        melody: foldMelodyToRange(
-          { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) },
-          bassInstrument.rangeLow,
-          bassInstrument.rangeHigh,
-        ),
+        melody: (() => {
+          const rawBass: Melody = { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) };
+          const bassShift = pickIdiomaticOctaveShift(rawBass, bassInstrument, ensemble.length);
+          const shiftedBass = bassShift
+            ? { ...rawBass, notes: rawBass.notes.map((n) => ({ ...n, pitch: n.pitch + bassShift })) }
+            : rawBass;
+          return foldMelodyToRange(shiftedBass, bassInstrument.rangeLow, bassInstrument.rangeHigh);
+        })(),
       }
     : null;
   const bassFloors = computeBassFloors(chords, bassPart?.melody.notes ?? [], beatsPerBar, bassInstrument?.rangeHigh ?? 0);
@@ -350,7 +390,7 @@ export function assignRoles(
   if (restHarmony.length > 0) {
     const lowestRange = Math.min(...restHarmony.map((i) => i.rangeLow));
     const lows = bassFloors.map((f) => Math.max(lowestRange, f));
-    const compingVoices = renderHarmonyVoices(chords, genre, beatsPerBar, restHarmony, ceilings, lows);
+    const compingVoices = renderHarmonyVoices(chords, genre, beatsPerBar, restHarmony, ceilings, lows, ensemble.length);
 
     for (const instrument of restHarmony) {
       const comping = compingVoices.get(instrument.id) ?? [];
