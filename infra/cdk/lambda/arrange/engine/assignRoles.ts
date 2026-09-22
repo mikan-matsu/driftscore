@@ -143,18 +143,31 @@ function computeBassFloors(chords: ChordSymbol[], bassNotes: Note[], beatsPerBar
  * time overlap rather than bar membership, shifting the whole simultaneous
  * note (never per-tone, to keep the voicing's shape) out of the way.
  */
-function clearOverlaps(notes: Note[], other: Note[], direction: "below" | "above"): Note[] {
+function clearOverlaps(
+  notes: Note[],
+  other: Note[],
+  direction: "below" | "above",
+  rangeLow: number,
+  rangeHigh: number,
+): Note[] {
   return notes.map((n) => {
     const pitches = n.pitches ?? [n.pitch];
     const overlapping = other.filter((o) => o.start < n.start + n.duration && n.start < o.start + o.duration);
     if (overlapping.length === 0) return n;
     let shift = 0;
+    // Shifting a whole octave at a time to clear a collision has no bound
+    // of its own — a low enough melody note (or high enough bass note)
+    // could otherwise push shift past the instrument's actual technical
+    // range (found via validateArrangement.test.ts). Stop at the range
+    // edge and accept the overlap rather than hand the instrument an
+    // unplayable pitch; a moment of voices crossing is a lesser defect
+    // than a pitch outside the instrument's range entirely.
     if (direction === "below") {
       const boundary = Math.min(...overlapping.map((o) => o.pitch));
-      while (Math.max(...pitches) + shift >= boundary) shift -= 12;
+      while (Math.max(...pitches) + shift >= boundary && Math.min(...pitches) + shift - 12 >= rangeLow) shift -= 12;
     } else {
       const boundary = Math.max(...overlapping.map((o) => o.pitch));
-      while (Math.min(...pitches) + shift <= boundary) shift += 12;
+      while (Math.min(...pitches) + shift <= boundary && Math.max(...pitches) + shift + 12 <= rangeHigh) shift += 12;
     }
     if (shift === 0) return n;
     const shifted = pitches.map((p) => p + shift);
@@ -272,8 +285,16 @@ function renderHarmonyVoices(
         const prev = prevPitch.get(instrument.id)!;
         let pitch = pc + 12 * Math.round((prev - pc) / 12);
         pitch = foldToRange(pitch, instrument.rangeLow, instrument.rangeHigh);
-        while (pitch >= above) pitch -= 12; // ceiling wins even if it means dipping below the instrument's nominal low end
-        while (pitch < low && pitch + 12 < above) pitch += 12; // then try to clear the bass too, without breaking the ceiling
+        // Ceiling wins even if it means dipping toward the instrument's
+        // nominal low end — but never past its actual technical floor. A
+        // real arranger accepts a comping voice brushing against the
+        // melody's register over handing an instrument a pitch it can't
+        // physically play; this bound was missing before, letting a low
+        // ceiling push some voices (e.g. oboe/2nd trumpet in comping-heavy
+        // stretches) below their real playable range entirely.
+        while (pitch >= above && pitch - 12 >= instrument.rangeLow) pitch -= 12;
+        // Then try to clear the bass too, without breaking the ceiling or the instrument's own technical ceiling.
+        while (pitch < low && pitch + 12 < above && pitch + 12 <= instrument.rangeHigh) pitch += 12;
         // Nearest-voice voice-leading can drift the part away from its
         // idiomatic register over a stretch of low ceilings/high floors and
         // then never find its way back once the constraint eases, since
@@ -405,14 +426,24 @@ export function assignRoles(
         notes = [...comping.filter((n) => n.start < harmonyFromBeat), ...harmonyLine];
       } else if (instrument.id === countermelodyInstrument?.id) {
         const startingPitch = Math.round(((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2);
-        const answers = renderCountermelody(
-          melodyPart.melody.notes,
-          chords,
-          beatsPerBar,
-          countermelodyUntilBeat,
-          startingPitch,
-          countermelodyFromBeat,
-        );
+        // renderCountermelody voice-leads purely by nearest-octave-to-
+        // previous-note with no ceiling/floor of its own, so a long enough
+        // answering line can drift outside the instrument's technical range
+        // over time (found via validateArrangement.test.ts: trumpetBb2
+        // landing a couple semitones under its floor) — fold it back the
+        // same way the harmony-line branch above already does.
+        const answers = foldMelodyToRange(
+          { beatsPerBar, notes: renderCountermelody(
+            melodyPart.melody.notes,
+            chords,
+            beatsPerBar,
+            countermelodyUntilBeat,
+            startingPitch,
+            countermelodyFromBeat,
+          ) },
+          instrument.rangeLow,
+          instrument.rangeHigh,
+        ).notes;
         notes = [
           ...comping.filter((n) => n.start < countermelodyFromBeat),
           ...answers,
@@ -443,17 +474,24 @@ export function assignRoles(
     });
   }
 
-  const clearedHarmonyParts = harmonyParts.map((part) => ({
-    ...part,
-    melody: {
-      ...part.melody,
-      notes: clearOverlaps(
-        clearOverlaps(part.melody.notes, melodyPart.melody.notes, "below"),
-        bassPart?.melody.notes ?? [],
-        "above",
-      ),
-    },
-  }));
+  const clearedHarmonyParts = harmonyParts.map((part) => {
+    const instrument = harmonyInstruments.find((i) => i.id === part.id);
+    const rangeLow = instrument?.rangeLow ?? -Infinity;
+    const rangeHigh = instrument?.rangeHigh ?? Infinity;
+    return {
+      ...part,
+      melody: {
+        ...part.melody,
+        notes: clearOverlaps(
+          clearOverlaps(part.melody.notes, melodyPart.melody.notes, "below", rangeLow, rangeHigh),
+          bassPart?.melody.notes ?? [],
+          "above",
+          rangeLow,
+          rangeHigh,
+        ),
+      },
+    };
+  });
 
   // Staff order top-to-bottom: melody, then harmony (high to low register), then bass at the very bottom.
   return [melodyPart, ...clearedHarmonyParts, ...(bassPart ? [bassPart] : [])];
