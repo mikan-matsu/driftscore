@@ -55,11 +55,16 @@ export function ScoreViewer({
         // `zoom` below is what actually shrinks each page's on-screen
         // footprint.
         osmd.zoom = 0.7;
-        // Cap measures per system so a line never grows wide enough to
-        // become hard to scan — 4 bars/line is the readable default for a
-        // full ensemble score; OSMD's own fit-to-page logic can still use
-        // fewer per line when a page is narrow.
-        osmd.EngravingRules.RenderXMeasuresPerLineAkaSystem = 4;
+        // A fixed measures-per-system count (the previous "4 bars/line"
+        // setting) forces OSMD to draw exactly that many bars per line no
+        // matter how much content is in them — a bar-dense passage (chords,
+        // fast rhythms, many simultaneous voices) can then need more
+        // horizontal space than the fixed A4 page width actually has, and
+        // OSMD draws it past the page edge instead of shrinking to fit
+        // (reported: notation cut off at the page's right edge). Leaving
+        // this unset lets OSMD's own fit-to-page logic pick how many bars
+        // fit per line from the actual content width, same as it already
+        // does for narrow pages.
         await osmd.load(musicXml);
         if (cancelled) return;
         osmd.render();
