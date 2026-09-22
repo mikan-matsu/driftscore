@@ -27,6 +27,51 @@ function buildVampProgression(key: EstimatedKey, barCount: number): ChordSymbol[
   return chords;
 }
 
+const PICKUP_MOTIF_LENGTH = 3; // notes taken from the head of the theme
+
+/**
+ * Occasional teaser phrase during the intro, drawn from the head of the
+ * theme melody, so the intro isn't silent the whole way through but also
+ * doesn't just restate the theme in full ("時々ピックアップ的なフレーズ",
+ * not a wall of melody). Each intro bar independently rolls whether to
+ * place a short version of the theme's opening notes near the end of the
+ * bar — i.e. as a pickup/anacrusis leading into whatever follows, classic
+ * pickup phrasing — at reduced velocity so it reads as a hint rather than a
+ * full statement. The final intro bar is weighted much higher, since a
+ * pickup straight into the theme is the natural place for this; earlier
+ * bars only tease occasionally. Uses Math.random, so like
+ * embellishMelody.ts this isn't deterministic across calls.
+ */
+function buildIntroMelody(themeMelody: Melody, introBars: number, beatsPerBar: number): Melody {
+  const head = themeMelody.notes.slice(0, PICKUP_MOTIF_LENGTH);
+  if (head.length === 0) return { beatsPerBar, notes: [] };
+  const firstStart = head[0].start;
+  const motifDuration = head.reduce((sum, n) => Math.max(sum, n.start - firstStart + n.duration), 0);
+
+  const notes: Note[] = [];
+  let id = 0;
+  for (let bar = 0; bar < introBars; bar++) {
+    const chance = bar === introBars - 1 ? 0.6 : 0.25;
+    if (Math.random() >= chance) continue;
+
+    const barStart = bar * beatsPerBar;
+    // Land the motif in the back half of the bar, like a real pickup,
+    // rather than spread across the whole bar.
+    const placementStart = Math.max(0, beatsPerBar - motifDuration);
+
+    for (const n of head) {
+      notes.push({
+        id: `ip${id++}`,
+        pitch: n.pitch,
+        start: barStart + placementStart + (n.start - firstStart),
+        duration: n.duration,
+        velocity: Math.round(n.velocity * 0.6),
+      });
+    }
+  }
+  return { beatsPerBar, notes };
+}
+
 /** Shifts a melody's notes and a chord progression's bars so they start at `barOffset`. */
 function shiftMelody(melody: Melody, barOffset: number, beatsPerBar: number): Melody {
   const beatOffset = barOffset * beatsPerBar;
@@ -97,7 +142,8 @@ export function buildSongForm(
   const restMelody: Melody = { beatsPerBar, notes: [] };
   const genreUsesSeventh = genre === "jazz" || genre === "samba";
 
-  addSection("intro", introBars, restMelody, buildVampProgression(key, introBars));
+  const introMelody = buildIntroMelody(themeMelody, introBars, beatsPerBar);
+  addSection("intro", introBars, introMelody, buildVampProgression(key, introBars));
   addSection("theme", themeBars, themeMelody, themeChords);
   for (let lap = 0; lap < soloLaps; lap++) {
     const soloStartPitch = themeMelody.notes[0]?.pitch ?? key.root + 72;
