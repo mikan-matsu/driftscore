@@ -342,7 +342,7 @@ function computePageBreaks(systemBreaks: Set<number>, numParts: number): Set<num
 }
 
 /** Converts a generated Arrangement (multiple parts) into multi-staff MusicXML for OSMD. */
-export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftScore"): string {
+export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftScore", singlePartId?: string): string {
   const measureCounts = arrangement.parts.map((p) => melodyToMeasures(p.melody).length);
   const measureCount = Math.max(1, ...measureCounts);
 
@@ -355,15 +355,19 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
       ? new Map(arrangement.sections.map((s: Section) => [s.startBar, SECTION_LABELS[s.kind]]))
       : undefined;
 
-  const pitchedPartCount = arrangement.parts.filter((p) => p.clef !== "percussion").length;
-  const density = computeMeasureDensity(arrangement.parts, arrangement.beatsPerBar, measureCount);
-  const systemBreaks = computeSystemBreaks(measureCount, density, pitchedPartCount);
-  const pageBreaks = computePageBreaks(systemBreaks, arrangement.parts.length);
+  const partsToRender = singlePartId
+    ? arrangement.parts.filter((p) => p.id === singlePartId)
+    : arrangement.parts;
 
-  const partList = arrangement.parts
+  const pitchedPartCount = partsToRender.filter((p) => p.clef !== "percussion").length;
+  const density = computeMeasureDensity(partsToRender, arrangement.beatsPerBar, measureCount);
+  const systemBreaks = computeSystemBreaks(measureCount, density, pitchedPartCount);
+  const pageBreaks = computePageBreaks(systemBreaks, partsToRender.length);
+
+  const partList = partsToRender
     .map((p) => `<score-part id="${p.id}"><part-name>${p.name}</part-name></score-part>`)
     .join("");
-  const parts = arrangement.parts
+  const parts = partsToRender
     .map((p, i) => {
       const chordsPerMeasure = p.id === arrangement.melodyPartId ? arrangement.chords : undefined;
       const labels = i === 0 ? sectionLabelForMeasure : undefined;

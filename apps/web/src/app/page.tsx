@@ -24,6 +24,7 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   // Guards against a slower, older /arrange request resolving after a newer
   // one (e.g. the user reselects a song and regenerates before the first
   // response lands) and overwriting the newer arrangement with stale data —
@@ -60,6 +61,7 @@ export default function Home() {
       const data = (await res.json()) as { arrangement: Arrangement };
       if (requestId !== generationIdRef.current) return;
       setArrangement(data.arrangement);
+      setSelectedPartId(null);
       setStatus("done");
     } catch {
       if (requestId !== generationIdRef.current) return;
@@ -135,15 +137,46 @@ export default function Home() {
             )}
             {status === "done" && arrangement && (
               <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={handleTogglePlay}
-                  className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
-                >
-                  {isPlaying ? "■ 停止" : "▶ 再生"}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTogglePlay}
+                    className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                  >
+                    {isPlaying ? "■ 停止" : "▶ 再生"}
+                  </button>
+                  {arrangement.parts.length > 1 && (
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPartId(null)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          selectedPartId === null
+                            ? "bg-green-500 text-white"
+                            : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                        }`}
+                      >
+                        スコア全体
+                      </button>
+                      {arrangement.parts.map((part) => (
+                        <button
+                          key={part.id}
+                          type="button"
+                          onClick={() => setSelectedPartId(part.id)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                            selectedPartId === part.id
+                              ? "bg-green-500 text-white"
+                              : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                          }`}
+                        >
+                          {part.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <ScoreViewer
-                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title)}
+                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title, selectedPartId ?? undefined)}
                   title={selectedSong?.title}
                   onCursorReady={setCursor}
                 />
