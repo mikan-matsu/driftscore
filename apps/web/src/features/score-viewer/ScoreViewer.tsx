@@ -41,7 +41,18 @@ export function ScoreViewer({
           backend: "svg",
           drawTitle: Boolean(title),
           cursorsOptions: [{ type: 1, color: "#60a5fa", alpha: 1, follow: true }],
+          // Real A4 pages with page breaks (not one endless horizontal
+          // strip) — "フル版" score look, pages laid out side by side via
+          // the flex-wrap container below, like spreading printed pages out
+          // on a desk.
+          pageFormat: "A4_P",
+          pageBackgroundColor: "#FFFFFF",
         });
+        // Cap measures per system so a line never grows wide enough to
+        // become hard to scan — 4 bars/line is the readable default for a
+        // full ensemble score; OSMD's own fit-to-page logic can still use
+        // fewer per line when a page is narrow.
+        osmd.EngravingRules.RenderXMeasuresPerLineAkaSystem = 4;
         await osmd.load(musicXml);
         if (cancelled) return;
         osmd.render();
@@ -65,11 +76,15 @@ export function ScoreViewer({
   }, [musicXml, title]);
 
   return (
-    <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700">
+    <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-slate-100 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       {error ? (
         <p className="p-4 text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : (
-        <div ref={containerRef} />
+        // OSMD (in paged mode) renders one <svg> per A4 page as a sibling
+        // inside this div — flex-wrap lays multiple pages out side by side,
+        // like a real printed score spread, instead of stacking them in one
+        // long vertical scroll.
+        <div ref={containerRef} className="flex flex-wrap justify-center gap-4" />
       )}
     </div>
   );

@@ -113,7 +113,12 @@ export default function Home() {
         )}
 
         {step === "result" && (
-          <section className="w-full max-w-3xl flex flex-col gap-3">
+          // Wider than the other sections' max-w-3xl (768px) — a single A4
+          // portrait page renders at ~734px, so 3xl can't fit even one page
+          // without clipping. Two pages side by side (spread view) need
+          // ~1484px (734px x2 + gap), past even max-w-7xl (1280px), so this
+          // section gets its own wider cap instead of a stock Tailwind size.
+          <section className="w-full max-w-[1600px] flex flex-col gap-3">
             <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">3. 結果</h2>
             {status === "loading" && <p className="text-sm text-slate-500">生成中...</p>}
             {status === "error" && (
