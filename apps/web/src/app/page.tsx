@@ -11,6 +11,27 @@ type Step = "pick" | "options" | "result";
 
 const API_URL = process.env.NEXT_PUBLIC_ARRANGE_API_URL ?? "";
 
+/** Applies a drag-to-edit pitch change (from ScoreViewer's onNoteEdit) to one note within one
+ * part's melody, without touching anything else — the arrangement's other parts/notes, chord
+ * symbols, and sections are untouched, so no fresh /arrange API round-trip is needed for a
+ * single-note pitch edit. Matches the note by id (unique within one part's own melody). */
+function editNotePitch(arrangement: Arrangement, partId: string, note: Note, newPitch: number): Arrangement {
+  return {
+    ...arrangement,
+    parts: arrangement.parts.map((part) =>
+      part.id === partId
+        ? {
+            ...part,
+            melody: {
+              ...part.melody,
+              notes: part.melody.notes.map((n) => (n.id === note.id ? { ...n, pitch: newPitch } : n)),
+            },
+          }
+        : part,
+    ),
+  };
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("pick");
   const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
@@ -188,6 +209,10 @@ export default function Home() {
                   arrangement={arrangement}
                   onCursorReady={setCursor}
                   onNoteClick={(partId, note) => setSelectedNote({ partId, note })}
+                  onNoteEdit={(partId, note, newPitch) => {
+                    setArrangement((prev) => (prev ? editNotePitch(prev, partId, note, newPitch) : prev));
+                    setSelectedNote({ partId, note: { ...note, pitch: newPitch } });
+                  }}
                 />
                 {selectedNote && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
