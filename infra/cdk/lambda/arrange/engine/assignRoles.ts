@@ -1,4 +1,5 @@
 import { triadPitchClasses } from "./chordProgression";
+import { renderCountermelody } from "./countermelody";
 import { embellishMelody } from "./embellishMelody";
 import { STYLES, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
@@ -292,31 +293,63 @@ export function assignRoles(
   const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
   const restHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
 
-  // The highest-register monophonic harmony instrument — the one closest to
-  // the melody's own register — shadows it with a parallel diatonic-third
-  // harmony line instead of the genre's chord-tone comping pattern; this is
-  // the simplest, most common form of "ハモリ" (close two-part harmony). Any
-  // remaining monophonic harmony instruments keep comping as before. Skipped
-  // entirely when there's no monophonic harmony instrument (e.g. piano
-  // trio, clarinet/guitar/bass) — a chordal (polyphonic) instrument doesn't
-  // fit this role, since it already voices full chords under the melody.
+  // Real arrangements don't harmonize or answer the melody constantly —
+  // texture builds over the piece. Split it in half: the first half gets a
+  // sparser call-and-response countermelody filling the melody's rests
+  // (when there's a spare voice for it), the second half adds a parallel
+  // diatonic-third harmony line under the melody (the simplest, most common
+  // "ハモリ") — the two textures don't overlap, so neither instrument is
+  // both harmonizing AND answering at once. Instruments not on either duty
+  // just comp throughout, as before.
+  const halfBeat = Math.floor(chords.length / 2) * beatsPerBar;
+
+  // Highest-register monophonic harmony instrument — closest to the
+  // melody's own register — carries the harmony line in the second half.
+  // Skipped entirely when there's no monophonic harmony instrument (e.g.
+  // piano trio, clarinet/guitar/bass) — a chordal (polyphonic) instrument
+  // doesn't fit this role, since it already voices full chords on its own.
   const harmonyLineInstrument =
     restHarmony.length > 0 ? restHarmony.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
-  const monoHarmony = restHarmony.filter((i) => i.id !== harmonyLineInstrument?.id);
+  // Next-highest-register remaining instrument answers the melody's rests in
+  // the first half — only when there's a THIRD monophonic harmony
+  // instrument to spare (e.g. brass quintet's horn, once trumpet 2 has the
+  // harmony line and trombone is left free to comp); otherwise every
+  // instrument just comps and no countermelody plays this arrangement.
+  const nonHarmonyLine = restHarmony.filter((i) => i.id !== harmonyLineInstrument?.id);
+  const countermelodyInstrument =
+    nonHarmonyLine.length >= 2 ? nonHarmonyLine.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
 
-  if (harmonyLineInstrument) {
-    harmonyParts.push({
-      id: harmonyLineInstrument.id,
-      name: harmonyLineInstrument.name,
-      clef: harmonyLineInstrument.clef,
-      transposeSemitones: harmonyLineInstrument.transposeSemitones,
-      polyphonic: harmonyLineInstrument.polyphonic,
-      melody: foldMelodyToRange(
-        renderParallelHarmony(melodyPart.melody, key),
-        harmonyLineInstrument.rangeLow,
-        harmonyLineInstrument.rangeHigh,
-      ),
-    });
+  if (restHarmony.length > 0) {
+    const lowestRange = Math.min(...restHarmony.map((i) => i.rangeLow));
+    const lows = bassFloors.map((f) => Math.max(lowestRange, f));
+    const compingVoices = renderHarmonyVoices(chords, genre, beatsPerBar, restHarmony, ceilings, lows);
+
+    for (const instrument of restHarmony) {
+      const comping = compingVoices.get(instrument.id) ?? [];
+      let notes = comping;
+
+      if (instrument.id === harmonyLineInstrument?.id) {
+        const harmonyLine = foldMelodyToRange(
+          renderParallelHarmony(melodyPart.melody, key),
+          instrument.rangeLow,
+          instrument.rangeHigh,
+        ).notes.filter((n) => n.start >= halfBeat);
+        notes = [...comping.filter((n) => n.start < halfBeat), ...harmonyLine];
+      } else if (instrument.id === countermelodyInstrument?.id) {
+        const startingPitch = Math.round(((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2);
+        const answers = renderCountermelody(melodyPart.melody.notes, chords, beatsPerBar, halfBeat, startingPitch);
+        notes = [...answers, ...comping.filter((n) => n.start >= halfBeat)];
+      }
+
+      harmonyParts.push({
+        id: instrument.id,
+        name: instrument.name,
+        clef: instrument.clef,
+        transposeSemitones: instrument.transposeSemitones,
+        polyphonic: instrument.polyphonic,
+        melody: { beatsPerBar, notes },
+      });
+    }
   }
 
   for (const instrument of polyHarmony) {
@@ -329,21 +362,6 @@ export function assignRoles(
       polyphonic: instrument.polyphonic,
       melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows) },
     });
-  }
-  if (monoHarmony.length > 0) {
-    const lowestRange = Math.min(...monoHarmony.map((i) => i.rangeLow));
-    const lows = bassFloors.map((f) => Math.max(lowestRange, f));
-    const voices = renderHarmonyVoices(chords, genre, beatsPerBar, monoHarmony, ceilings, lows);
-    for (const instrument of monoHarmony) {
-      harmonyParts.push({
-        id: instrument.id,
-        name: instrument.name,
-        clef: instrument.clef,
-        transposeSemitones: instrument.transposeSemitones,
-        polyphonic: instrument.polyphonic,
-        melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
-      });
-    }
   }
 
   const clearedHarmonyParts = harmonyParts.map((part) => ({
