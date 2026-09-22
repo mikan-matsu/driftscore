@@ -47,6 +47,15 @@ export function ScoreViewer({
           // spreading printed pages out side by side on a desk.
           pageFormat: "A4_P",
           pageBackgroundColor: "#FFFFFF",
+          // OSMD ignores a MusicXML <print new-system="yes"/> / <print
+          // new-page="yes"/> unless explicitly told to honor them — both
+          // default to false. Without this, arrangementToMusicXml's computed
+          // system/page breaks (8 bars/line, 4 for dense passages, explicit
+          // page breaks so a long full-song-form arrangement actually spans
+          // multiple A4 pages) are silently no-ops and OSMD falls back to
+          // its own auto-fit, which doesn't reliably paginate at all.
+          newSystemFromXML: true,
+          newPageFromXML: true,
         });
         // OSMD's own `zoom` only scales the notation *within* each A4 page —
         // the page (the <svg> canvas) itself stays a fixed pixel size
@@ -55,16 +64,13 @@ export function ScoreViewer({
         // `zoom` below is what actually shrinks each page's on-screen
         // footprint.
         osmd.zoom = 0.7;
-        // A fixed measures-per-system count (the previous "4 bars/line"
-        // setting) forces OSMD to draw exactly that many bars per line no
-        // matter how much content is in them — a bar-dense passage (chords,
-        // fast rhythms, many simultaneous voices) can then need more
-        // horizontal space than the fixed A4 page width actually has, and
-        // OSMD draws it past the page edge instead of shrinking to fit
-        // (reported: notation cut off at the page's right edge). Leaving
-        // this unset lets OSMD's own fit-to-page logic pick how many bars
-        // fit per line from the actual content width, same as it already
-        // does for narrow pages.
+        // Measures-per-system is no longer a fixed OSMD setting here — a
+        // fixed count (the old "4 bars/line") could overflow a dense bar
+        // past the page's right edge, while leaving it fully automatic
+        // broke OSMD's own page pagination outright. arrangementToMusicXml
+        // now decides system/page breaks itself (8 bars/line by default, 4
+        // for a dense passage) and writes them as explicit <print> marks,
+        // honored via newSystemFromXML/newPageFromXML above.
         await osmd.load(musicXml);
         if (cancelled) return;
         osmd.render();
