@@ -65,16 +65,27 @@ interface NoteXmlOptions {
   /** Forces stem direction — percussion notation convention: hihat/snare/toms
    * up, kick down, independent of the notehead's vertical staff position. */
   stem?: "up" | "down";
+  /** Namespaces the emitted note id (see idAttr below) — Note.id counters
+   * reset per generation function, so different parts can produce the same
+   * raw id (e.g. two parts both starting at "n0"); the XML `id` attribute
+   * must be unique across the whole document. */
+  partId?: string;
 }
 
 function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number, options: NoteXmlOptions = {}): string {
-  const { isPercussion = false, voice, stem } = options;
+  const { isPercussion = false, voice, stem, partId } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
   const voiceXml = voice ? `<voice>${voice}</voice>` : "";
   const stemXml = stem ? `<stem>${stem}</stem>` : "";
   const pitches = note ? (note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch]) : [];
+  // Carries the underlying Note.id through to the rendered SVG (OSMD copies
+  // this MusicXML `id` attribute onto its GraphicalNote), so a click/drag on
+  // the rendered staff can be traced back to the piano-roll Note it came
+  // from. A note split across a measure boundary emits this id on each
+  // resulting <note> chunk, since they're still the same logical note.
+  const idAttr = note ? ` id="note-${partId ?? "p"}-${note.id}"` : "";
 
   if (pitches.length === 0) {
     return `<note><rest/><duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`;
@@ -83,14 +94,14 @@ function noteXml(durationBeats: number, note: Note | null, transposeSemitones: n
     return pitches
       .map((gmKey, i) => {
         const { positionXml, noteheadXml } = unpitchedXml(gmKey);
-        return `<note>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}</note>`;
       })
       .join("");
   }
   return pitches
     .map(
       (pitch, i) =>
-        `<note>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`,
+        `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`,
     )
     .join("");
 }
@@ -172,8 +183,8 @@ function partMeasuresXml(
   const isPercussion = part.clef === "percussion";
   const hasSecondVoice = !!part.secondaryVoice;
   const primaryOptions: NoteXmlOptions = isPercussion
-    ? { isPercussion: true, voice: 1, stem: "up" }
-    : {};
+    ? { isPercussion: true, voice: 1, stem: "up", partId: part.id }
+    : { partId: part.id };
   const measures = melodyToMeasures(part.melody, part.transposeSemitones, primaryOptions);
   while (measures.length < measureCount) {
     measures.push([noteXml(beatsPerBar, null, part.transposeSemitones, primaryOptions)]);
@@ -181,7 +192,7 @@ function partMeasuresXml(
 
   let secondMeasures: string[][] = [];
   if (part.secondaryVoice) {
-    const secondaryOptions: NoteXmlOptions = { isPercussion: true, voice: 2, stem: "down" };
+    const secondaryOptions: NoteXmlOptions = { isPercussion: true, voice: 2, stem: "down", partId: part.id };
     secondMeasures = melodyToMeasures(part.secondaryVoice, part.transposeSemitones, secondaryOptions);
     while (secondMeasures.length < measureCount) {
       secondMeasures.push([noteXml(beatsPerBar, null, part.transposeSemitones, secondaryOptions)]);

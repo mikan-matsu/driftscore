@@ -14,6 +14,31 @@ export interface ScoreCursor {
   };
 }
 
+interface OsmdPoint {
+  x: number;
+  y: number;
+}
+
+interface OsmdGraphicalNote {
+  sourceNote: {
+    Pitch?: { halfTone: number };
+    getAbsoluteTimestamp(): { RealValue: number };
+  };
+  setColor(color: string, options: Record<string, never>): void;
+}
+
+/** Minimal surface of OSMD's own instance we need for click-to-note hit-testing (see project memory
+ * `project_osmd_note_id_finding` — OSMD drops the MusicXML note `id` entirely, so resolving a click has
+ * to go through OSMD's own coordinate-conversion + nearest-object APIs instead). Not part of OSMD's
+ * public TS types (GraphicSheet's hit-testing methods exist but aren't re-exported at the top level). */
+interface OsmdInstance {
+  GraphicSheet: {
+    domToSvg(point: OsmdPoint): OsmdPoint;
+    svgToOsmd(point: OsmdPoint): OsmdPoint;
+    GetNearestNote(clickPosition: OsmdPoint, maxClickDist: OsmdPoint): OsmdGraphicalNote | undefined;
+  };
+}
+
 export function ScoreViewer({
   musicXml,
   title,
@@ -25,6 +50,7 @@ export function ScoreViewer({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const osmdRef = useRef<OsmdInstance | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +101,7 @@ export function ScoreViewer({
         if (cancelled) return;
         osmd.render();
         setError(null);
+        osmdRef.current = osmd as unknown as OsmdInstance;
         onCursorReady?.(osmd.cursor as ScoreCursor);
       } catch (e) {
         if (cancelled) return;
@@ -93,6 +120,22 @@ export function ScoreViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicXml, title]);
 
+  // Click-to-select proof of concept (see project memory
+  // `project_osmd_note_id_finding`): OSMD never carries the MusicXML <note
+  // id> into its internal model, so a click is resolved purely through
+  // OSMD's own coordinate-conversion (domToSvg/svgToOsmd, page-relative —
+  // handles our multi-page CSS grid layout automatically since each page is
+  // its own backend) and GetNearestNote() APIs, not by DOM id lookup.
+  function handleContainerClick(e: React.MouseEvent<HTMLDivElement>) {
+    const osmd = osmdRef.current;
+    if (!osmd) return;
+    const svgPoint = osmd.GraphicSheet.domToSvg({ x: e.clientX, y: e.clientY });
+    const osmdPoint = osmd.GraphicSheet.svgToOsmd(svgPoint);
+    const note = osmd.GraphicSheet.GetNearestNote(osmdPoint, { x: 2, y: 2 });
+    if (!note) return;
+    note.setColor("#e11d48", {});
+  }
+
   return (
     <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 bg-slate-100 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       {error ? (
@@ -109,6 +152,7 @@ export function ScoreViewer({
         // so more pages are visible at once without scrolling.
         <div
           ref={containerRef}
+          onClick={handleContainerClick}
           className="grid gap-4 justify-center"
           style={{ zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
         />
