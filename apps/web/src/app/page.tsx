@@ -52,6 +52,16 @@ export default function Home() {
   // notation UI; editing itself isn't wired up yet, this just surfaces what
   // got resolved so the click-to-note path is visibly working end to end.
   const [selectedNote, setSelectedNote] = useState<{ partId: string; note: Note } | null>(null);
+  // Undo for hand-edits (drag-pitch / double-click-duration) made on the
+  // score after generation. A plain ref stack of prior full Arrangement
+  // snapshots — cheap since edits are infrequent and each Arrangement is
+  // small — pushed just before each edit is applied. Not a React state
+  // value itself (nothing needs to re-render off its contents), so
+  // `canUndo` is the only piece of it surfaced to the UI. Cleared on every
+  // fresh /arrange generation, since undoing "past" a full regeneration
+  // back into a previous song/genre's notes wouldn't make sense.
+  const editHistoryRef = useRef<Arrangement[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
   // Guards against a slower, older /arrange request resolving after a newer
   // one (e.g. the user reselects a song and regenerates before the first
   // response lands) and overwriting the newer arrangement with stale data —
@@ -90,11 +100,28 @@ export default function Home() {
       setArrangement(data.arrangement);
       setSelectedPartId(null);
       setSelectedNote(null);
+      editHistoryRef.current = [];
+      setCanUndo(false);
       setStatus("done");
     } catch {
       if (requestId !== generationIdRef.current) return;
       setStatus("error");
     }
+  }
+
+  function applyNoteEdit(next: Arrangement) {
+    if (!arrangement) return;
+    editHistoryRef.current.push(arrangement);
+    setCanUndo(true);
+    setArrangement(next);
+  }
+
+  function handleUndo() {
+    const previous = editHistoryRef.current.pop();
+    if (!previous) return;
+    setArrangement(previous);
+    setSelectedNote(null);
+    setCanUndo(editHistoryRef.current.length > 0);
   }
 
   const BPM = 108;
@@ -173,6 +200,14 @@ export default function Home() {
                   >
                     {isPlaying ? "■ 停止" : "▶ 再生"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    disabled={!canUndo}
+                    className="self-start rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    ↶ 元に戻す
+                  </button>
                   {arrangement.parts.length > 1 && (
                     <div className="flex flex-wrap gap-1">
                       <button
@@ -210,11 +245,13 @@ export default function Home() {
                   onCursorReady={setCursor}
                   onNoteClick={(partId, note) => setSelectedNote({ partId, note })}
                   onNoteEdit={(partId, note, newPitch) => {
-                    setArrangement((prev) => (prev ? updateNote(prev, partId, note.id, { pitch: newPitch }) : prev));
+                    if (!arrangement) return;
+                    applyNoteEdit(updateNote(arrangement, partId, note.id, { pitch: newPitch }));
                     setSelectedNote({ partId, note: { ...note, pitch: newPitch } });
                   }}
                   onNoteDurationEdit={(partId, note, newDuration) => {
-                    setArrangement((prev) => (prev ? updateNote(prev, partId, note.id, { duration: newDuration }) : prev));
+                    if (!arrangement) return;
+                    applyNoteEdit(updateNote(arrangement, partId, note.id, { duration: newDuration }));
                     setSelectedNote({ partId, note: { ...note, duration: newDuration } });
                   }}
                 />
