@@ -48,10 +48,13 @@ export function ScoreViewer({
           pageFormat: "A4_P",
           pageBackgroundColor: "#FFFFFF",
         });
-        // Smaller notation so more of a page (and more pages at once) fits
-        // on screen without scrolling — full ensemble scores read fine
-        // small since the user mainly scans it, doesn't need engraving-size notation.
-        osmd.zoom = 0.6;
+        // OSMD's own `zoom` only scales the notation *within* each A4 page —
+        // the page (the <svg> canvas) itself stays a fixed pixel size
+        // regardless, so this alone can't make more of the score fit on
+        // screen. Kept at a legible engraving size; the container's CSS
+        // `zoom` below is what actually shrinks each page's on-screen
+        // footprint.
+        osmd.zoom = 0.7;
         // Cap measures per system so a line never grows wide enough to
         // become hard to scan — 4 bars/line is the readable default for a
         // full ensemble score; OSMD's own fit-to-page logic can still use
@@ -85,10 +88,19 @@ export function ScoreViewer({
         <p className="p-4 text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : (
         // OSMD (in paged mode) renders one <svg> per A4 page as a sibling
-        // inside this div — a single non-wrapping flex row lays every page
-        // out side by side left-to-right, scrolled horizontally via the
-        // outer div's overflow-x-auto, like flipping through a real score.
-        <div ref={containerRef} className="flex flex-row flex-nowrap gap-4" />
+        // inside this div — a fixed 2-column grid lays pages 1-2 side by
+        // side, then wraps page 3 onward to the next row underneath (a book
+        // spread, not an ever-widening single row). `max-content` columns
+        // keep each column sized to the page's own (CSS-zoomed) width
+        // instead of stretching pages to fill the row. CSS `zoom` (not
+        // OSMD's own zoom option, which only scales the notation inside a
+        // fixed-size page) shrinks each page's actual on-screen footprint,
+        // so more pages are visible at once without scrolling.
+        <div
+          ref={containerRef}
+          className="grid gap-4 justify-center"
+          style={{ zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
+        />
       )}
     </div>
   );
