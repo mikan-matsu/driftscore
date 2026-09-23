@@ -1,6 +1,21 @@
 "use client";
 
-import { ENSEMBLES, GENRES, KEY_ROOTS, SONG_FORMS, type ArrangeOptions } from "./types";
+import {
+  CUSTOM_ENSEMBLE_ID,
+  ENSEMBLES,
+  GENRES,
+  INSTRUMENT_CATALOG,
+  KEY_ROOTS,
+  MAX_CUSTOM_INSTRUMENTS,
+  SONG_FORMS,
+  type ArrangeOptions,
+} from "./types";
+
+const GROUP_LABELS: Record<(typeof INSTRUMENT_CATALOG)[number]["group"], string> = {
+  woodwind: "木管",
+  brass: "金管",
+  rhythm: "リズム/コード",
+};
 
 export function ArrangeOptionsForm({
   value,
@@ -68,6 +83,49 @@ export function ArrangeOptionsForm({
             </button>
           ))}
         </div>
+        {value.ensembleId === CUSTOM_ENSEMBLE_ID && (
+          <div className="mt-2 flex flex-col gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500">
+              <span>楽器を選択(最大{MAX_CUSTOM_INSTRUMENTS}種)</span>
+              <span>{value.customInstrumentIds.length}種選択中</span>
+            </div>
+            {(["woodwind", "brass", "rhythm"] as const).map((group) => (
+              <div key={group} className="flex flex-col gap-1">
+                <span className="text-xs text-slate-400 dark:text-slate-500">{GROUP_LABELS[group]}</span>
+                <div className="flex flex-wrap gap-2">
+                  {INSTRUMENT_CATALOG.filter((i) => i.group === group).map((instrument) => {
+                    const selected = value.customInstrumentIds.includes(instrument.id);
+                    const atLimit = !selected && value.customInstrumentIds.length >= MAX_CUSTOM_INSTRUMENTS;
+                    return (
+                      <button
+                        key={instrument.id}
+                        type="button"
+                        disabled={atLimit}
+                        onClick={() =>
+                          onChange({
+                            ...value,
+                            customInstrumentIds: selected
+                              ? value.customInstrumentIds.filter((id) => id !== instrument.id)
+                              : [...value.customInstrumentIds, instrument.id],
+                          })
+                        }
+                        className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                          selected
+                            ? "bg-blue-400 text-white"
+                            : atLimit
+                              ? "border border-slate-100 text-slate-300 dark:border-slate-800 dark:text-slate-600"
+                              : "border border-slate-200 text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {instrument.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-2">
         <span className="text-sm text-slate-500 dark:text-slate-400">調</span>

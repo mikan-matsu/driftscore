@@ -3,6 +3,7 @@ import { estimateChordProgression } from "./chordProgression";
 import { assignRoles } from "./assignRoles";
 import { applyBreakHits } from "./breakHits";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
+import type { InstrumentDef } from "./instruments";
 import { buildSongForm } from "./songForm";
 import { applySwing } from "./swing";
 import { renderDrumPart } from "./drums";
@@ -37,8 +38,12 @@ export function generateArrangement(
   ensembleId: string = DEFAULT_ENSEMBLE_ID,
   targetKeyRoot?: number | null,
   songForm: SongForm = "theme",
+  /** Freeform instrument list for a custom (non-preset) ensemble — when set, overrides `ensembleId` entirely and the returned arrangement's `ensembleId` is "custom". */
+  customInstruments?: InstrumentDef[],
 ): Arrangement {
-  const preset = ENSEMBLE_PRESETS[ensembleId] ?? ENSEMBLE_PRESETS[DEFAULT_ENSEMBLE_ID];
+  const preset = customInstruments
+    ? { id: "custom", name: "Custom", instruments: customInstruments }
+    : ENSEMBLE_PRESETS[ensembleId] ?? ENSEMBLE_PRESETS[DEFAULT_ENSEMBLE_ID];
   const detectedKey = estimateKey(inputMelody);
   const hasTargetKey = typeof targetKeyRoot === "number" && targetKeyRoot !== detectedKey.root;
   const melody = hasTargetKey ? transposeMelody(inputMelody, detectedKey.root, targetKeyRoot) : inputMelody;

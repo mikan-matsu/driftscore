@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
-import { ArrangeOptionsForm, type ArrangeOptions } from "@/features/arrange-options";
+import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
 import type { Note } from "@/features/piano-roll";
@@ -39,6 +39,7 @@ export default function Home() {
     genre: "jazz",
     distortion: 30,
     ensembleId: "pianoTrio",
+    customInstrumentIds: [],
     keyRoot: null,
     songForm: "theme",
   });
@@ -89,7 +90,9 @@ export default function Home() {
           melody: selectedSong.melody,
           genre: options.genre,
           distortion: options.distortion,
-          ensembleId: options.ensembleId,
+          ...(options.ensembleId === CUSTOM_ENSEMBLE_ID
+            ? { instrumentIds: options.customInstrumentIds }
+            : { ensembleId: options.ensembleId }),
           keyRoot: options.keyRoot,
           songForm: options.songForm,
         }),
@@ -169,7 +172,8 @@ export default function Home() {
             <button
               type="button"
               onClick={handleGenerate}
-              className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
+              disabled={options.ensembleId === CUSTOM_ENSEMBLE_ID && options.customInstrumentIds.length === 0}
+              className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
               アレンジを生成する
             </button>

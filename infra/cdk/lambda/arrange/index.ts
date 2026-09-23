@@ -1,15 +1,23 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { generateArrangement, type SongForm } from "./engine/generateArrangement";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./engine/ensembles";
+import { INSTRUMENTS } from "./engine/instruments";
 import type { Genre, Melody } from "./engine/types";
 
 const GENRES: Genre[] = ["jazz", "rock", "classical", "samba"];
+// Freeform custom-ensemble picks are capped here — no arranging-theory reason
+// for the exact number, just a sane ceiling on Lambda work per request and on
+// how unwieldy the resulting score gets; matches assignRoles.ts's
+// LARGE_ENSEMBLE_SIZE, past which idiomatic-register tolerance stops widening.
+const MAX_CUSTOM_INSTRUMENTS = 10;
 
 interface RequestBody {
   melody?: Melody;
   genre?: string;
   distortion?: number;
   ensembleId?: string;
+  /** Freeform ensemble as a list of instrument catalog ids (INSTRUMENTS keys) — when present and non-empty, takes precedence over ensembleId. */
+  instrumentIds?: string[];
   /** Pitch class 0-11 to transpose the melody's tonic to, or omitted/null to keep its own key. */
   keyRoot?: number | null;
   /** "full" for intro/theme/solo/break/reprise/ending; anything else (or omitted) keeps the existing single-pass theme arrangement. */
@@ -42,7 +50,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       : null;
   const songForm: SongForm = body.songForm === "full" ? "full" : "theme";
 
-  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId, keyRoot, songForm);
+  let customInstruments;
+  if (Array.isArray(body.instrumentIds) && body.instrumentIds.length > 0) {
+    const resolved = body.instrumentIds
+      .filter((id): id is string => typeof id === "string")
+      .slice(0, MAX_CUSTOM_INSTRUMENTS)
+      .map((id) => INSTRUMENTS[id])
+      .filter((def): def is NonNullable<typeof def> => Boolean(def));
+    if (resolved.length === 0) {
+      return { statusCode: 400, body: JSON.stringify({ message: "instrumentIds contains no valid instrument" }) };
+    }
+    customInstruments = resolved;
+  }
+
+  const arrangement = generateArrangement(body.melody, genre, distortion, ensembleId, keyRoot, songForm, customInstruments);
 
   return {
     statusCode: 200,
