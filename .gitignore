@@ -23,3 +23,7 @@ cdk.out/
 
 # Non-public project docs (requirements/strategy — local only)
 /CLAUDE.md
+
+# Playwright
+/apps/web/test-results/
+/apps/web/playwright-report/

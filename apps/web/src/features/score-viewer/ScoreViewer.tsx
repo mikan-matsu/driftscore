@@ -160,7 +160,18 @@ export function ScoreViewer({
           autoResize: true,
           backend: "svg",
           drawTitle: Boolean(title),
-          cursorsOptions: [{ type: 1, color: "#60a5fa", alpha: 1, follow: true }],
+          // follow: false — during actual playback the cursor is driven
+          // manually via style.left/top in useCursorSync's rAF loop, never
+          // through OSMD's own cursor.next(), so OSMD's follow-scroll never
+          // fires during playback anyway. It WAS firing during
+          // buildLineSegments's silent pre-playback walk (which calls
+          // cursor.next() a lot to measure line spans), triggering a native
+          // scrollIntoView({block:"center"}) on every step and leaving the
+          // score scrolled to an arbitrary position — including cutting off
+          // page 1's title — before playback even started. See project
+          // memory `project_score_title_clipping_bug` for the earlier,
+          // different left-clip bug this superficially resembles.
+          cursorsOptions: [{ type: 1, color: "#60a5fa", alpha: 1, follow: false }],
           // Real A4 pages with page breaks (not one endless horizontal
           // strip) — "フル版" score look, pages laid out in a single
           // horizontally-scrolling row (see the container below), like

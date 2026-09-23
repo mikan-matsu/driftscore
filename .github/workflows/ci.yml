@@ -19,10 +19,18 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
+      - run: npm run lint --workspace=apps/web
       - run: npm run build:web
       - run: npm run build --workspace=infra/cdk
       - run: npm test --workspace=infra/cdk
       - run: npm run cdk --workspace=infra/cdk -- synth
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      # Hits the real deployed /arrange API (no local Lambda emulation — see
+      # CLAUDE.md); traffic is near-zero and the API's own throttle (5 req/s)
+      # bounds the blast radius. Revisit if that stops being true.
+      - run: npx playwright test
+        working-directory: apps/web
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
