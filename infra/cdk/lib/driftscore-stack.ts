@@ -9,7 +9,6 @@ import * as lambdaNode from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigwv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { Construct } from 'constructs';
 
 export class DriftscoreStack extends cdk.Stack {
@@ -85,43 +84,18 @@ export class DriftscoreStack extends cdk.Stack {
       value: httpApi.apiEndpoint,
     });
 
-    // --- 未認証ユーザーのレート制限: /arrangeへのリクエストをIPごとに5分間100回までに制限 ---
-    // (要件定義「アクセス制御」節: 未ログインは回数制限つきのお試し利用。ユーザー単位ではなく
-    //  送信元IPを鍵に、WAFのレートベースルールでスロットリングする。)
-    const arrangeRateLimitWebAcl = new wafv2.CfnWebACL(this, 'DriftscoreArrangeRateLimitWebAcl', {
-      name: 'driftscore-arrange-rate-limit',
-      scope: 'REGIONAL',
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: 'driftscore-arrange-rate-limit',
-        sampledRequestsEnabled: true,
-      },
-      rules: [
-        {
-          name: 'driftscore-arrange-rate-limit-rule',
-          priority: 0,
-          action: { block: {} },
-          statement: {
-            rateBasedStatement: {
-              // WAFのレートベースルールは直近5分間の集計固定(仕様上、期間は変更不可)。
-              limit: 100,
-              aggregateKeyType: 'IP',
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: 'driftscore-arrange-rate-limit-rule',
-            sampledRequestsEnabled: true,
-          },
-        },
-      ],
-    });
-
-    new wafv2.CfnWebACLAssociation(this, 'DriftscoreArrangeWebAclAssociation', {
-      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${httpApi.apiId}/stages/${httpApi.defaultStage!.stageName}`,
-      webAclArn: arrangeRateLimitWebAcl.attrArn,
-    });
+    // --- 未認証ユーザーのレート制限: /arrangeへのリクエスト数をAPI全体でスロットリング ---
+    // (要件定義「アクセス制御」節: 未ログインは回数制限つきのお試し利用。
+    //  当初WAFv2のIPベースのレートベースルールで実装しようとしたが、WAFはHTTP API(apigatewayv2)への
+    //  関連付けに対応しておらず(REST API v1/CloudFront/ALB/AppSyncのみ対応)、デプロイ時にInvalidRequestで
+    //  失敗することが判明。IPごとの制限ではなくAPI全体の秒間リクエスト数制限になるが、HTTP APIがネイティブに
+    //  持つステージのdefaultRouteSettingsでスロットリングする。L2のHttpStageコンストラクトにはこの設定が
+    //  露出していないため、CfnStageへのエスケープハッチ経由で設定する。
+    const defaultStage = httpApi.defaultStage!.node.defaultChild as apigwv2.CfnStage;
+    defaultStage.defaultRouteSettings = {
+      throttlingRateLimit: 5, // 定常時の上限(リクエスト/秒)
+      throttlingBurstLimit: 10, // 瞬間的なバーストの上限
+    };
 
     // --- GitHub Actions用OIDC連携: mikan-matsu/driftscoreのmainブランチからのみcdk deployを許可 ---
     // (driftcraftと同じパターン。GitHub用OIDCプロバイダはAWSアカウントに1つしか作成できないため、
