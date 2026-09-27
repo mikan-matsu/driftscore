@@ -3,7 +3,11 @@
 import type { Arrangement } from "@/features/score-viewer";
 import {
   GM_KICK,
+  GM_SIDE_STICK,
   GM_SNARE,
+  GM_LOW_TOM,
+  GM_MID_TOM,
+  GM_HIGH_TOM,
   GM_HIHAT_CLOSED,
   GM_RIDE,
   GM_AGOGO_HIGH,
@@ -122,6 +126,15 @@ function createDrumKit(Tone: typeof import("tone")): { trigger: (gmKey: number, 
     resonance: 3600,
     octaves: 0.8,
   }).toDestination();
+  // Rim click: an even tighter/drier noise burst than the maracas shimmer —
+  // reads as a "tick" rather than a hit, distinct from the snare's full
+  // backbeat crack.
+  const sideStick = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.02, sustain: 0 } }).toDestination();
+  // One shared pitched-membrane voice for all three toms (unlike the metal
+  // synths above, MembraneSynth's triggerAttackRelease takes a real note
+  // argument, so no need for three separate instances) — envelope kept
+  // short enough for the samba fill's back-to-back 16th-note tom run.
+  const toms = new Tone.MembraneSynth({ octaves: 3, envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.05 } }).toDestination();
 
   // Tone's underlying oscillators require every start() on the same voice to
   // be at a strictly later time than the previous one — in practice, times
@@ -166,6 +179,18 @@ function createDrumKit(Tone: typeof import("tone")): { trigger: (gmKey: number, 
         case GM_AGOGO_LOW:
           triggerMetal(agogoLow, 0.25, 0.05, duration, t);
           break;
+        case GM_SIDE_STICK:
+          triggerMetal(sideStick, 0.02, 0, duration, t);
+          break;
+        case GM_LOW_TOM:
+          toms.triggerAttackRelease("G2", duration, t);
+          break;
+        case GM_MID_TOM:
+          toms.triggerAttackRelease("C3", duration, t);
+          break;
+        case GM_HIGH_TOM:
+          toms.triggerAttackRelease("F3", duration, t);
+          break;
       }
     } catch {
       // Tone clamps a scheduled time to the audio context's actual current
@@ -181,7 +206,7 @@ function createDrumKit(Tone: typeof import("tone")): { trigger: (gmKey: number, 
     }
   };
 
-  return { trigger, voices: [kick, snare, hihat, ride, maracas, agogoHigh, agogoLow] };
+  return { trigger, voices: [kick, snare, hihat, ride, maracas, agogoHigh, agogoLow, sideStick, toms] };
 }
 
 /**
