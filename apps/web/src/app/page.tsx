@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SongPicker, type PresetSong } from "@/features/song-picker";
 import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
@@ -53,16 +53,20 @@ export default function Home() {
   // notation UI; editing itself isn't wired up yet, this just surfaces what
   // got resolved so the click-to-note path is visibly working end to end.
   const [selectedNote, setSelectedNote] = useState<{ partId: string; note: Note } | null>(null);
-  // Undo for hand-edits (drag-pitch / double-click-duration) made on the
-  // score after generation. A plain ref stack of prior full Arrangement
-  // snapshots — cheap since edits are infrequent and each Arrangement is
-  // small — pushed just before each edit is applied. Not a React state
-  // value itself (nothing needs to re-render off its contents), so
-  // `canUndo` is the only piece of it surfaced to the UI. Cleared on every
-  // fresh /arrange generation, since undoing "past" a full regeneration
-  // back into a previous song/genre's notes wouldn't make sense.
+  // Undo/redo for hand-edits (drag-pitch / double-click-duration) made on
+  // the score after generation. Two plain ref stacks of prior full
+  // Arrangement snapshots — cheap since edits are infrequent and each
+  // Arrangement is small — rather than React state, since nothing needs to
+  // re-render off their contents directly (`canUndo`/`canRedo` are the only
+  // pieces surfaced to the UI). A fresh edit clears the redo stack (the
+  // conventional behavior: redoing past a new edit doesn't make sense).
+  // Both are cleared on every fresh /arrange generation, since
+  // undoing/redoing "past" a full regeneration back into a previous
+  // song/genre's notes wouldn't make sense.
   const editHistoryRef = useRef<Arrangement[]>([]);
+  const redoHistoryRef = useRef<Arrangement[]>([]);
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   // Guards against a slower, older /arrange request resolving after a newer
   // one (e.g. the user reselects a song and regenerates before the first
   // response lands) and overwriting the newer arrangement with stale data —
@@ -104,7 +108,9 @@ export default function Home() {
       setSelectedPartId(null);
       setSelectedNote(null);
       editHistoryRef.current = [];
+      redoHistoryRef.current = [];
       setCanUndo(false);
+      setCanRedo(false);
       setStatus("done");
     } catch {
       if (requestId !== generationIdRef.current) return;
@@ -115,17 +121,53 @@ export default function Home() {
   function applyNoteEdit(next: Arrangement) {
     if (!arrangement) return;
     editHistoryRef.current.push(arrangement);
+    redoHistoryRef.current = [];
     setCanUndo(true);
+    setCanRedo(false);
     setArrangement(next);
   }
 
   function handleUndo() {
+    if (!arrangement) return;
     const previous = editHistoryRef.current.pop();
     if (!previous) return;
+    redoHistoryRef.current.push(arrangement);
     setArrangement(previous);
     setSelectedNote(null);
     setCanUndo(editHistoryRef.current.length > 0);
+    setCanRedo(true);
   }
+
+  function handleRedo() {
+    if (!arrangement) return;
+    const next = redoHistoryRef.current.pop();
+    if (!next) return;
+    editHistoryRef.current.push(arrangement);
+    setArrangement(next);
+    setSelectedNote(null);
+    setCanUndo(true);
+    setCanRedo(redoHistoryRef.current.length > 0);
+  }
+
+  // Cmd/Ctrl+Z to undo, Cmd/Ctrl+Shift+Z to redo — the note-editing
+  // convention every desktop app follows. Bound at the window level (not on
+  // a specific element) since a note edit doesn't leave focus anywhere in
+  // particular after a drag or double-click. preventDefault() blocks the
+  // browser's own text-field undo from also firing when the shortcut is
+  // pressed while some unrelated input has focus.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   const BPM = 108;
   useCursorSync(cursor, isPlaying, BPM);
@@ -138,11 +180,17 @@ export default function Home() {
       return;
     }
     setIsPlaying(true);
+    // Solos the currently selected part tab (see ScoreViewer's part buttons)
+    // — matches what's on screen, so "スコア全体" plays everything and
+    // picking e.g. "Alto Saxophone 1" plays only that part.
+    const partsToPlay = selectedPartId
+      ? arrangement.parts.filter((p) => p.id === selectedPartId)
+      : arrangement.parts;
     const lastEnd = Math.max(
       0,
-      ...arrangement.parts.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
+      ...partsToPlay.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
     );
-    await playArrangement(arrangement, BPM);
+    await playArrangement(arrangement, BPM, selectedPartId);
     window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
   }
 
@@ -208,9 +256,19 @@ export default function Home() {
                     type="button"
                     onClick={handleUndo}
                     disabled={!canUndo}
+                    title="⌘Z / Ctrl+Z"
                     className="self-start rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
                     ↶ 元に戻す
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRedo}
+                    disabled={!canRedo}
+                    title="⌘⇧Z / Ctrl+Shift+Z"
+                    className="self-start rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    ↷ やり直す
                   </button>
                   {arrangement.parts.length > 1 && (
                     <div className="flex flex-wrap gap-1">

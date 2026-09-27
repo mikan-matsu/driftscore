@@ -256,7 +256,14 @@ export function stopPlayback() {
   stopCurrent = null;
 }
 
-export async function playArrangement(arrangement: Arrangement, bpm = 108) {
+/**
+ * `partId` restricts playback to a single part — mirrors the score view's
+ * own per-part tab (selectedPartId in page.tsx), so soloing a part on
+ * screen and soloing it in playback stay in sync. Falls back to every part
+ * (the normal full-score playback) when omitted or when it doesn't match
+ * any part in this arrangement, rather than silently playing nothing.
+ */
+export async function playArrangement(arrangement: Arrangement, bpm = 108, partId?: string | null) {
   stopPlayback();
 
   const Tone = await import("tone");
@@ -265,7 +272,11 @@ export async function playArrangement(arrangement: Arrangement, bpm = 108) {
   const secondsPerBeat = 60 / bpm;
   const synths: Disposable[] = [];
 
-  for (const part of arrangement.parts) {
+  const partsToPlay = partId && arrangement.parts.some((p) => p.id === partId)
+    ? arrangement.parts.filter((p) => p.id === partId)
+    : arrangement.parts;
+
+  for (const part of partsToPlay) {
     if (part.clef === "percussion") {
       const kit = createDrumKit(Tone);
       synths.push(...kit.voices);
@@ -323,7 +334,7 @@ export async function playArrangement(arrangement: Arrangement, bpm = 108) {
 
   const lastEnd = Math.max(
     0,
-    ...arrangement.parts.flatMap((p) =>
+    ...partsToPlay.flatMap((p) =>
       [...p.melody.notes, ...(p.secondaryVoice?.notes ?? [])].map((n) => n.start + n.duration),
     ),
   );
