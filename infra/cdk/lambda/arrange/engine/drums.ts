@@ -66,23 +66,34 @@ const JAZZ_BAR: DrumHit[] = [
 // next to the reference's clean single-notehead line. Dropped rather than
 // thinned, since the user asked to match the reference chart directly, not
 // to keep the extra layer at a lower density.
+//
+// Side-stick timing was re-measured pixel-by-pixel against the reference
+// chart (a 2/4 pattern, tiled twice into this 4/4 bar) after an initial
+// transcription placed it a 16th-note too early in each half. The
+// reference's bottom voice is unambiguous once the noteheads are lined up
+// against the top voice's beamed 16th groups: the first side-stick sits
+// under the THIRD 16th of the beat (the "and"), not the second (the "e"),
+// and the second side-stick under the FOURTH 16th (the "a"), not the third
+// — i.e. offsets .5 and 1.75 within each 2-beat half, not .25 and 1.5. The
+// kick's own position (the downbeat of the half's second beat) was already
+// correct.
 const SAMBA_BAR: DrumHit[] = [
   { offset: 0, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 0.25, duration: 0.25, pitches: [GM_SIDE_STICK] },
-  { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 0.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS] },
   { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
   { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 1.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
-  { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 1.75, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 2, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 2.25, duration: 0.25, pitches: [GM_SIDE_STICK] },
-  { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 2.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS] },
   { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
   { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 3.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
-  { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 3.75, duration: 0.25, pitches: [GM_SIDE_STICK] },
 ];
 
 const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR, samba: SAMBA_BAR };
