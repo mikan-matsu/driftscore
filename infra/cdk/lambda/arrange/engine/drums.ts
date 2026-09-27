@@ -34,21 +34,25 @@ const ROCK_BAR: DrumHit[] = [
   { offset: 3.5, duration: 0.5, pitches: [GM_HIHAT_CLOSED] },
 ];
 
-// Swung jazz ride pattern ("ding, ding-a-ding"): long-short eighth pairs on
-// the ride, with the hihat's foot chick landing on 2 and 4 and a light kick
-// on 1. Written already in the swung 0.75/0.25 ratio (matching the samba
-// comping cell elsewhere in this file) instead of relying on the generic
-// applySwing() pass, which only reshapes even eighth pairs and isn't run
-// against the drum part.
+// Jazz ride pattern ("ding, ding-a-ding"), written in straight eighths —
+// hihat's foot chick on 2 and 4, a light kick on 1. A real jazz chart
+// notates this pattern straight and relies on a "Swing" marking (added to
+// the score by arrangementToMusicXml.ts for jazz arrangements) to tell the
+// player to swing the eighths, rather than spelling out the swung
+// dotted-8th+16th rhythm in the notation itself — spelling it out is both
+// visually unlike a real jazz chart and, worse, bakes one fixed swing
+// ratio into what's actually a performance-style choice. The swing feel is
+// applied at playback time instead (see playArrangement.ts's swingTime()),
+// leaving this pattern's own offsets/durations straight.
 const JAZZ_BAR: DrumHit[] = [
-  { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
-  { offset: 0.75, duration: 0.25, pitches: [GM_RIDE] },
-  { offset: 1, duration: 0.75, pitches: [GM_RIDE, GM_HIHAT_CLOSED] },
-  { offset: 1.75, duration: 0.25, pitches: [GM_RIDE] },
-  { offset: 2, duration: 0.75, pitches: [GM_RIDE] },
-  { offset: 2.75, duration: 0.25, pitches: [GM_RIDE] },
-  { offset: 3, duration: 0.75, pitches: [GM_RIDE, GM_HIHAT_CLOSED] },
-  { offset: 3.75, duration: 0.25, pitches: [GM_RIDE] },
+  { offset: 0, duration: 0.5, pitches: [GM_RIDE, GM_KICK] },
+  { offset: 0.5, duration: 0.5, pitches: [GM_RIDE] },
+  { offset: 1, duration: 0.5, pitches: [GM_RIDE, GM_HIHAT_CLOSED] },
+  { offset: 1.5, duration: 0.5, pitches: [GM_RIDE] },
+  { offset: 2, duration: 0.5, pitches: [GM_RIDE] },
+  { offset: 2.5, duration: 0.5, pitches: [GM_RIDE] },
+  { offset: 3, duration: 0.5, pitches: [GM_RIDE, GM_HIHAT_CLOSED] },
+  { offset: 3.5, duration: 0.5, pitches: [GM_RIDE] },
 ];
 
 // Samba percussion, on a 16th-note grid (samba is felt in 16, not 8 — a
@@ -159,10 +163,14 @@ const ROCK_FILLS: DrumHit[][] = [
 // A "drum trade" shape — ride/kick hold beat 1, then toms take over,
 // idiomatic for how a jazz kit punctuates a form without breaking the swing
 // feel outright.
+// Written straight throughout, matching JAZZ_BAR's own notation-vs-playback
+// split above — the swing feel comes from playArrangement.ts's swingTime()
+// reinterpreting these straight eighths at playback time, not from the
+// notation itself.
 const JAZZ_FILLS: DrumHit[][] = [
   [
-    { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
-    { offset: 0.75, duration: 0.25, pitches: [GM_RIDE] },
+    { offset: 0, duration: 0.5, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 0.5, duration: 0.5, pitches: [GM_RIDE] },
     { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
     { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
     { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
@@ -170,17 +178,15 @@ const JAZZ_FILLS: DrumHit[][] = [
     { offset: 3, duration: 0.5, pitches: [GM_LOW_TOM] },
     { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
   ],
-  // Swung (0.75/0.25) snare-into-toms, keeping the same long-short feel the
-  // regular jazz groove has instead of switching to straight 8ths.
   [
-    { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
-    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
-    { offset: 1, duration: 0.75, pitches: [GM_SNARE] },
-    { offset: 1.75, duration: 0.25, pitches: [GM_SNARE] },
-    { offset: 2, duration: 0.75, pitches: [GM_HIGH_TOM] },
-    { offset: 2.75, duration: 0.25, pitches: [GM_MID_TOM] },
-    { offset: 3, duration: 0.75, pitches: [GM_LOW_TOM] },
-    { offset: 3.75, duration: 0.25, pitches: [GM_LOW_TOM] },
+    { offset: 0, duration: 0.5, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 0.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
+    { offset: 2.5, duration: 0.5, pitches: [GM_MID_TOM] },
+    { offset: 3, duration: 0.5, pitches: [GM_LOW_TOM] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
   ],
   // Lighter, mostly-snare fill that only reaches for toms right at the end,
   // returning to ride+kick on the last 8th to cue the groove's return.
@@ -191,8 +197,8 @@ const JAZZ_FILLS: DrumHit[][] = [
     { offset: 1.5, duration: 0.5, pitches: [GM_MID_TOM] },
     { offset: 2, duration: 0.5, pitches: [GM_LOW_TOM] },
     { offset: 2.5, duration: 0.5, pitches: [GM_SNARE] },
-    { offset: 3, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
-    { offset: 3.75, duration: 0.25, pitches: [GM_RIDE] },
+    { offset: 3, duration: 0.5, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_RIDE] },
   ],
 ];
 

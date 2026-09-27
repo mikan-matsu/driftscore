@@ -47,7 +47,16 @@ export const GM_INSTRUMENT: Record<string, string> = {
   euphonium: "french_horn",
 };
 
-const KIT = "FluidR3_GM" as const;
+// MusyngKite over FluidR3_GM: FluidR3_GM's brass/reed patches (trumpet,
+// french_horn, trombone, oboe, alto_sax) are thin, synth-like recordings —
+// exactly the instruments flagged as still sounding wrong after switching
+// to samples, while its flute/clarinet/tuba patches (recorded better in
+// that particular soundfont) already sounded fine. MusyngKite is a
+// larger, more consistently-recorded GM soundfont across the whole
+// instrument set, not just a fix for the specific instruments flagged so
+// far — same free/open license, same gleitz/midi-js-soundfonts host, same
+// smplr Soundfont API, just a different `kit` value.
+const KIT = "MusyngKite" as const;
 
 interface CachedInstrument {
   instrument: Smplr;

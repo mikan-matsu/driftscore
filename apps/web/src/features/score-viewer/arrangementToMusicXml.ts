@@ -21,6 +21,14 @@ function rehearsalXml(label: string): string {
   return `<direction placement="above"><direction-type><rehearsal>${label}</rehearsal></direction-type></direction>`;
 }
 
+/** Plain italic performance-direction text (e.g. "Swing"), as opposed to
+ * rehearsalXml's boxed section-marker letters — the real-world convention
+ * for telling a player how to interpret notation that's written straight
+ * but meant to be played unevenly. */
+function wordsXml(text: string): string {
+  return `<direction placement="above"><direction-type><words font-style="italic">${text}</words></direction-type></direction>`;
+}
+
 const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
 const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const DIVISIONS = 4;
@@ -144,12 +152,21 @@ function noteXml(
 }
 
 const BEAMABLE_EPSILON = 1e-6;
-/** Eighth notes and shorter can be beamed (level 1); this engine's shortest duration is a 16th (level 2), so no level 3+ is ever needed. */
-function isBeamable(durationBeats: number): boolean {
-  return durationBeats <= 0.5 + BEAMABLE_EPSILON;
-}
-function isSixteenth(durationBeats: number): boolean {
-  return Math.abs(durationBeats - 0.25) < BEAMABLE_EPSILON;
+/**
+ * A note's beam eligibility depends on its written TYPE (eighth/16th),
+ * never its raw duration — a dotted eighth (0.75 beats) is still an
+ * eighth for beaming purposes, just as beamable as a plain one. Comparing
+ * raw duration against a 0.5-beat cutoff (an earlier version of this
+ * function did exactly that) silently excludes every dotted-eighth note
+ * from beaming entirely, which for a dotted-eighth+16th pair (the classic
+ * shuffle/swing figure, and genuinely still emitted elsewhere by patterns
+ * with real dotted rhythms, not just the old baked-in swing notation)
+ * left the 16th note beamed to nothing — rendered as an isolated flagged
+ * note instead of connected to the eighth it belongs with.
+ */
+function beamType(durationBeats: number): "eighth" | "16th" | null {
+  const { type } = noteTypeAndDots(durationBeats);
+  return type === "eighth" || type === "16th" ? type : null;
 }
 
 interface Chunk {
@@ -163,34 +180,47 @@ interface Chunk {
  * Assigns MusicXML <beam> begin/continue/end tags to a run of chunks that
  * share the same integer beat (so a beam never crosses a beat boundary —
  * standard engraving practice, and what "group by 4" for a 16th-note beat
- * means concretely). A rest or a note longer than an eighth breaks a run;
- * a lone beamable note with no beamable neighbor in the same beat doesn't
- * get a beam (MusicXML requires at least 2 notes to form one). Level 2
- * (the second, inner beam connecting only 16th notes) is layered on top of
- * the level-1 run wherever 2+ consecutive chunks within it are 16ths.
+ * means concretely). A rest or a note longer than an eighth (by written
+ * type, see beamType) breaks a run; a lone beamable note with no beamable
+ * neighbor in the same beat doesn't get a beam (MusicXML requires at least
+ * two notes to form one).
+ *
+ * Level 2 (the second, inner beam connecting only 16th notes) is layered
+ * on top of the level-1 run wherever 2+ consecutive chunks within it are
+ * 16ths. A single 16th with no 16th neighbor on either side (e.g. the
+ * second note of a dotted-eighth+16th pair) still needs a level-2 mark —
+ * a "hook" (a short stub, not a full beam to a nonexistent partner):
+ * pointing back toward the previous note when one exists in this beat
+ * group (the dotted-8th+16th case), or forward when this 16th is itself
+ * the first note in the group (the reverse, "Scotch snap" case).
  */
 function computeBeatBeams(group: Chunk[]): string[] {
   const beams = new Array<string>(group.length).fill("");
   let start = 0;
   while (start < group.length) {
-    if (!group[start].note || !isBeamable(group[start].duration)) {
+    if (!group[start].note || !beamType(group[start].duration)) {
       start++;
       continue;
     }
     let end = start;
-    while (end < group.length && group[end].note && isBeamable(group[end].duration)) end++;
+    while (end < group.length && group[end].note && beamType(group[end].duration)) end++;
     if (end - start >= 2) {
       for (let k = start; k < end; k++) {
         const level1 = k === start ? "begin" : k === end - 1 ? "end" : "continue";
         let xml = `<beam number="1">${level1}</beam>`;
-        if (isSixteenth(group[k].duration)) {
-          let s2 = k;
-          while (s2 > start && isSixteenth(group[s2 - 1].duration)) s2--;
-          let e2 = k;
-          while (e2 < end - 1 && isSixteenth(group[e2 + 1].duration)) e2++;
-          if (e2 > s2) {
+        if (beamType(group[k].duration) === "16th") {
+          const prevIsSixteenth = k > start && beamType(group[k - 1].duration) === "16th";
+          const nextIsSixteenth = k < end - 1 && beamType(group[k + 1].duration) === "16th";
+          if (prevIsSixteenth || nextIsSixteenth) {
+            let s2 = k;
+            while (s2 > start && beamType(group[s2 - 1].duration) === "16th") s2--;
+            let e2 = k;
+            while (e2 < end - 1 && beamType(group[e2 + 1].duration) === "16th") e2++;
             const level2 = k === s2 ? "begin" : k === e2 ? "end" : "continue";
             xml += `<beam number="2">${level2}</beam>`;
+          } else {
+            const hook = k > start ? "backward hook" : "forward hook";
+            xml += `<beam number="2">${hook}</beam>`;
           }
         }
         beams[k] = xml;
@@ -297,6 +327,7 @@ function partMeasuresXml(
   sectionLabelForMeasure?: Map<number, string>,
   systemBreaks?: Set<number>,
   pageBreaks?: Set<number>,
+  showSwingLabel?: boolean,
 ): string {
   const isPercussion = part.clef === "percussion";
   const isTab = isTabPart(part.id);
@@ -340,8 +371,14 @@ function partMeasuresXml(
           : "";
       const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
       const rehearsal = sectionLabelForMeasure?.has(i) ? rehearsalXml(sectionLabelForMeasure.get(i)!) : "";
+      // "Swing" at measure 1 of the top staff only, like a real jazz chart —
+      // the notation underneath is plain straight eighths (see JAZZ_BAR's
+      // own comment in drums.ts); this is the marking that tells the player
+      // (and, on this app's side, playArrangement.ts's swingTime()) to
+      // interpret them unevenly rather than spelling that out note-by-note.
+      const swing = showSwingLabel && i === 0 ? wordsXml("Swing") : "";
       const secondVoiceXml = hasSecondVoice ? backupXml + (secondMeasures[i]?.join("") ?? "") : "";
-      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
+      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${swing}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
     })
     .join("");
 }
@@ -503,7 +540,8 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
     .map((p, i) => {
       const chordsPerMeasure = p.id === arrangement.melodyPartId ? arrangement.chords : undefined;
       const labels = i === 0 ? sectionLabelForMeasure : undefined;
-      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels, systemBreaks, pageBreaks)}</part>`;
+      const showSwingLabel = i === 0 && arrangement.genre === "jazz";
+      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels, systemBreaks, pageBreaks, showSwingLabel)}</part>`;
     })
     .join("");
 

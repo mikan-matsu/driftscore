@@ -15,6 +15,7 @@ import {
   GM_MARACAS,
 } from "@/features/score-viewer/percussionMap";
 import { loadSampledInstruments, stopAllSampledInstruments } from "./sampledInstruments";
+import { swingForPlayback } from "./swingPlayback";
 
 interface Disposable {
   dispose(): void;
@@ -214,11 +215,26 @@ export async function playArrangement(
   const sampledInstruments = await loadSampledInstruments(Tone, pitchedInstrumentIds);
   onLoading?.(false);
 
+  const isJazz = arrangement.genre === "jazz";
+
   for (const part of partsToPlay) {
     if (part.clef === "percussion") {
       const kit = createDrumKit(Tone);
       disposables.push(...kit.voices);
-      const drumNotes = [...part.melody.notes, ...(part.secondaryVoice?.notes ?? [])];
+      // Swung per voice (up/down), never on the combined list — the two
+      // voices' notes interleave at the same starting beats (e.g. a kick
+      // and a ride both starting on beat 1), and swingForPlayback's pairing
+      // is blind to which voice a note belongs to: run on a merged list, a
+      // down-voice kick with no real partner of its own could accidentally
+      // steal the up-voice ride note that actually pairs with it, corrupting
+      // both. Each voice's own note stream never has this ambiguity.
+      const upNotes = isJazz ? swingForPlayback(part.melody.notes) : part.melody.notes;
+      const downNotes = part.secondaryVoice
+        ? isJazz
+          ? swingForPlayback(part.secondaryVoice.notes)
+          : part.secondaryVoice.notes
+        : [];
+      const drumNotes = [...upNotes, ...downNotes];
       for (const note of drumNotes) {
         const pitches = note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch];
         const time = note.start * secondsPerBeat;
@@ -237,7 +253,8 @@ export async function playArrangement(
     const instrument = sampledInstruments.get(part.id);
     if (!instrument) continue;
 
-    for (const note of part.melody.notes) {
+    const notes = isJazz ? swingForPlayback(part.melody.notes) : part.melody.notes;
+    for (const note of notes) {
       const pitches = note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch];
       const time = note.start * secondsPerBeat;
       const duration = note.duration * secondsPerBeat * 0.95;

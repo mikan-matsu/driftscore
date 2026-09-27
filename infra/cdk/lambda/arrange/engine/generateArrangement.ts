@@ -5,7 +5,6 @@ import { applyBreakHits } from "./breakHits";
 import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./ensembles";
 import type { InstrumentDef } from "./instruments";
 import { buildSongForm } from "./songForm";
-import { applySwing } from "./swing";
 import { renderDrumPart } from "./drums";
 import type { Arrangement, ArrangementPart, Genre, Melody, Section } from "./types";
 
@@ -61,10 +60,13 @@ export function generateArrangement(
     sections = form.sections;
   }
 
+  // Notation stays straight eighths even for jazz — swing is a playback-time
+  // interpretation of straight-eighth notation (the real convention: a jazz
+  // chart is written straight with a "Swing" marking, not spelled out as
+  // dotted-8th+16th throughout), so it's applied client-side in
+  // playArrangement.ts, not baked into the notes here. See that file's
+  // swingTime() for the actual transform.
   let parts = assignRoles(fullMelody, chords, genre, distortion, preset.instruments, key, sections, preset.layout);
-  if (genre === "jazz") {
-    parts = parts.map((part) => ({ ...part, melody: { ...part.melody, notes: applySwing(part.melody.notes) } }));
-  }
 
   let drumVoices = renderDrumPart(chords, genre, beatsPerBar);
 
