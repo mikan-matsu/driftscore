@@ -46,6 +46,12 @@ export default function Home() {
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
+  // True while this arrangement's sampled instruments (see
+  // features/playback/sampledInstruments.ts) are being fetched — a
+  // sample-based instrument genuinely has to download audio the first time
+  // it's used in a session, unlike a synthesized oscillator, so this needs
+  // its own indicator distinct from `isPlaying`.
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   // Click-to-select on the rendered score (see project memory
@@ -190,7 +196,7 @@ export default function Home() {
       0,
       ...partsToPlay.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
     );
-    await playArrangement(arrangement, BPM, selectedPartId);
+    await playArrangement(arrangement, BPM, selectedPartId, setIsLoadingAudio);
     window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
   }
 
@@ -248,9 +254,10 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleTogglePlay}
-                    className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                    disabled={isLoadingAudio}
+                    className="self-start rounded-full bg-blue-400 px-6 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isPlaying ? "■ 停止" : "▶ 再生"}
+                    {isLoadingAudio ? "音源読み込み中..." : isPlaying ? "■ 停止" : "▶ 再生"}
                   </button>
                   <button
                     type="button"

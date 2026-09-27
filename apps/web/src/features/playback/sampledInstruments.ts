@@ -1,0 +1,122 @@
+"use client";
+
+import { Soundfont, SplendidGrandPiano, type Smplr } from "smplr";
+
+/**
+ * Maps each DriftScore instrument id (infra/cdk/lambda/arrange/engine/instruments.ts)
+ * to a General MIDI instrument name from the FluidR3_GM soundfont (free,
+ * openly-licensed multi-sampled recordings — see smplr's own README) rather
+ * than a synthesized oscillator. Several DriftScore ids intentionally share
+ * one GM name (e.g. every clarinet chair uses "clarinet") — see
+ * `loadSampledInstruments`, which loads and caches by GM name, not by
+ * DriftScore id, so those chairs share a single fetched instrument instead
+ * of re-downloading the same samples per chair.
+ *
+ * "lead" (a generic placeholder melody voice used when no real melodic
+ * instrument exists, e.g. pianoTrio) has no real-instrument identity to
+ * match — mapped to violin as a flexible, pleasant default. "guitar" moves
+ * here too (off the old PluckSynth physical model) for consistency with
+ * every other instrument now being sample-based; TAB notation is unaffected
+ * since that's a notation-layer decision, unrelated to the audio engine.
+ * "piano" gets its own dedicated multi-velocity-layer sample set
+ * (SplendidGrandPiano) rather than the general soundfont's piano patch, for
+ * a comping role that's heard almost constantly.
+ */
+export const GM_INSTRUMENT: Record<string, string> = {
+  lead: "violin",
+  electricBass: "electric_bass_finger",
+  flute: "flute",
+  oboe: "oboe",
+  clarinetBb: "clarinet",
+  clarinetBb2: "clarinet",
+  clarinetBb3: "clarinet",
+  trumpetBb: "trumpet",
+  trumpetBb2: "trumpet",
+  trumpetBb3: "trumpet",
+  hornF: "french_horn",
+  hornF2: "french_horn",
+  bassoon: "bassoon",
+  guitar: "acoustic_guitar_steel",
+  trombone: "trombone",
+  trombone2: "trombone",
+  tuba: "tuba",
+  altoSax1: "alto_sax",
+  altoSax2: "alto_sax",
+  // No dedicated GM euphonium patch exists — french_horn is the closer
+  // timbral match (mellow, lyrical) versus tuba's much darker, heavier tone.
+  euphonium: "french_horn",
+};
+
+const KIT = "FluidR3_GM" as const;
+
+interface CachedInstrument {
+  instrument: Smplr;
+  ready: Promise<void>;
+}
+
+/** Module-level cache, not per-playback: instruments are fetched once per
+ * GM name for the whole session and reused across every subsequent
+ * generation/replay, so only genuinely new instruments (a newly-picked
+ * custom ensemble instrument the session hasn't used yet) cost a fetch. */
+const cache = new Map<string, CachedInstrument>();
+
+function getAudioContext(Tone: typeof import("tone")): BaseAudioContext {
+  return Tone.getContext().rawContext as unknown as BaseAudioContext;
+}
+
+function loadOne(Tone: typeof import("tone"), gmName: string): CachedInstrument {
+  const existing = cache.get(gmName);
+  if (existing) return existing;
+
+  const ctx = getAudioContext(Tone);
+  const instrument =
+    gmName === "piano" ? SplendidGrandPiano(ctx) : Soundfont(ctx, { kit: KIT, instrument: gmName });
+  const entry: CachedInstrument = { instrument, ready: instrument.ready };
+  cache.set(gmName, entry);
+  return entry;
+}
+
+/**
+ * Ensures every GM instrument this arrangement's parts need is loaded
+ * (fetching only names not already cached from a previous play), and
+ * returns a lookup from DriftScore instrument id to its ready Smplr
+ * instance. Callers should await this — and ideally show a loading
+ * indicator while it's pending — before scheduling any notes, since a
+ * `.start()` call before `.ready` resolves plays nothing.
+ */
+export async function loadSampledInstruments(
+  Tone: typeof import("tone"),
+  instrumentIds: string[],
+): Promise<Map<string, Smplr>> {
+  const gmNames = new Set<string>();
+  for (const id of instrumentIds) {
+    // SplendidGrandPiano is keyed as "piano" separately from the GM name
+    // table above (see loadOne) rather than through GM_INSTRUMENT, since it
+    // isn't a General MIDI soundfont instrument.
+    if (id === "piano") gmNames.add("piano");
+    else {
+      const gmName = GM_INSTRUMENT[id];
+      if (gmName) gmNames.add(gmName);
+    }
+  }
+
+  const entries = [...gmNames].map((name) => [name, loadOne(Tone, name)] as const);
+  await Promise.all(entries.map(([, entry]) => entry.ready));
+
+  const byId = new Map<string, Smplr>();
+  for (const id of instrumentIds) {
+    const gmName = id === "piano" ? "piano" : GM_INSTRUMENT[id];
+    const entry = gmName ? cache.get(gmName) : undefined;
+    if (entry) byId.set(id, entry.instrument);
+  }
+  return byId;
+}
+
+/** Stops every currently-ringing voice across every loaded sampled
+ * instrument — called on playback stop, since these instruments persist
+ * across plays (see the module-level cache) rather than being disposed. */
+export function stopAllSampledInstruments() {
+  for (const { instrument } of cache.values()) {
+    instrument.stop();
+  }
+}
