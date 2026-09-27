@@ -32,28 +32,48 @@ interface Disposable {
  * what genuinely produces that sound procedurally, no sample library needed.
  * It has no triggerAttackRelease of its own (a plucked string's decay is
  * physically modeled, not an ADSR release you trigger), and each instance is
- * monophonic — so this pools a handful of them and round-robins across the
- * pool to cover the comping's simultaneous chord tones, exposing the same
- * Playable interface (triggerAttackRelease) the rest of this file expects.
- * 6 voices, same as a real guitar's string count — comfortably covers this
- * engine's chord voicings (2-4 simultaneous tones, see genreStyles.ts).
+ * monophonic — so this pools a handful of them to cover the comping's
+ * simultaneous chord tones, exposing the same Playable interface
+ * (triggerAttackRelease) the rest of this file expects.
+ *
+ * Each voice tracks the time it becomes free (its last scheduled release).
+ * A strict round-robin (the original approach here) picks the *next* voice
+ * in sequence regardless of whether it's still ringing — a sustained chord
+ * comped every beat or two with 3-4 simultaneous tones cycles back to a
+ * voice whose previous note's sustain hasn't finished yet, and Tone.js
+ * requires every trigger on a voice to be strictly later than its previous
+ * one; calling triggerAttack before that time throws, and the catch around
+ * every triggerAttackRelease call in playArrangement (see below) silently
+ * drops the note. The audible result was guitar comping reduced to
+ * occasional random thuds instead of continuous chords — nearly every note
+ * was being thrown away. Picking whichever pooled voice is free soonest
+ * (rather than "whichever is next in sequence") avoids the collision in
+ * the first place instead of just surviving it after the fact.
  */
 function createPluckGuitar(Tone: typeof import("tone")): Playable {
-  const POOL_SIZE = 6;
-  const voices = Array.from({ length: POOL_SIZE }, () =>
-    new Tone.PluckSynth({ attackNoise: 1, dampening: 3000, resonance: 0.85 }).toDestination(),
-  );
-  let next = 0;
+  const POOL_SIZE = 8;
+  const voices = Array.from({ length: POOL_SIZE }, () => ({
+    synth: new Tone.PluckSynth({ attackNoise: 1, dampening: 3000, resonance: 0.85 }).toDestination(),
+    freeAt: 0,
+  }));
   return {
     triggerAttackRelease(note, duration, time) {
-      const voice = voices[next];
-      next = (next + 1) % voices.length;
       const startTime = time ?? Tone.now();
-      voice.triggerAttack(note, startTime);
-      voice.triggerRelease(startTime + duration);
+      let chosen = voices[0];
+      for (const v of voices) {
+        if (v.freeAt < chosen.freeAt) chosen = v;
+      }
+      // If even the least-busy voice is still ringing past this note's
+      // start, nudge the attack to right after it frees up rather than
+      // triggering early and throwing — a rare, small timing compromise
+      // instead of a dropped note.
+      const effectiveStart = Math.max(startTime, chosen.freeAt);
+      chosen.synth.triggerAttack(note, effectiveStart);
+      chosen.synth.triggerRelease(effectiveStart + duration);
+      chosen.freeAt = effectiveStart + duration;
     },
     dispose() {
-      for (const v of voices) v.dispose();
+      for (const v of voices) v.synth.dispose();
     },
   };
 }
