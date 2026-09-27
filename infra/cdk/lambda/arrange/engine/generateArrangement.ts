@@ -61,7 +61,7 @@ export function generateArrangement(
     sections = form.sections;
   }
 
-  let parts = assignRoles(fullMelody, chords, genre, distortion, preset.instruments, key, sections);
+  let parts = assignRoles(fullMelody, chords, genre, distortion, preset.instruments, key, sections, preset.layout);
   if (genre === "jazz") {
     parts = parts.map((part) => ({ ...part, melody: { ...part.melody, notes: applySwing(part.melody.notes) } }));
   }
@@ -94,7 +94,12 @@ export function generateArrangement(
     ensembleId: preset.id,
     beatsPerBar,
     chords,
-    melodyPartId: parts[0].id,
+    // parts[0] is the melody instrument for every small preset (assignRoles's
+    // default path always returns it first), but a layout-driven ensemble
+    // (e.g. wind band) returns parts in band score order instead, so the
+    // primary melody instrument isn't necessarily first — fall back to the
+    // layout's own explicit answer in that case.
+    melodyPartId: preset.layout?.melody ?? parts[0].id,
     parts,
     sections,
   };

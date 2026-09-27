@@ -242,4 +242,119 @@ export const INSTRUMENTS: Record<string, InstrumentDef> = {
     idiomaticLow: 28, // E1 (same as technical low — no meaningfully higher "sweet spot" found)
     idiomaticHigh: 55, // G3
   },
+  // The following entries exist to seat a concert-band (wind band) preset —
+  // multiple stands per section, each needing a distinct id/name even where
+  // the underlying instrument (and its register data) is identical to an
+  // existing entry above.
+  clarinetBb2: {
+    id: "clarinetBb2",
+    name: "Clarinet in B♭ 2",
+    clef: "treble",
+    transposeSemitones: 2,
+    rangeLow: 50,
+    rangeHigh: 89,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 70,
+    idiomaticHigh: 82,
+    harmonyIdiomaticLow: 50,
+    harmonyIdiomaticHigh: 63,
+  },
+  clarinetBb3: {
+    id: "clarinetBb3",
+    name: "Clarinet in B♭ 3",
+    clef: "treble",
+    transposeSemitones: 2,
+    rangeLow: 50,
+    rangeHigh: 89,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 70,
+    idiomaticHigh: 82,
+    harmonyIdiomaticLow: 50,
+    harmonyIdiomaticHigh: 63,
+  },
+  trumpetBb3: {
+    id: "trumpetBb3",
+    name: "Trumpet in B♭ 3",
+    clef: "treble",
+    transposeSemitones: 2,
+    rangeLow: 52,
+    rangeHigh: 82,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 58,
+    idiomaticHigh: 77,
+  },
+  hornF2: {
+    id: "hornF2",
+    name: "Horn in F 2",
+    clef: "treble",
+    transposeSemitones: 7,
+    rangeLow: 41,
+    rangeHigh: 77,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 46,
+    idiomaticHigh: 65,
+  },
+  trombone2: {
+    id: "trombone2",
+    name: "Trombone 2",
+    clef: "bass",
+    transposeSemitones: 0,
+    rangeLow: 40,
+    rangeHigh: 72,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 53,
+    idiomaticHigh: 70,
+  },
+  // Alto sax and euphonium are new instrument *families* for this project
+  // (not just an extra stand of an existing one), so their register data is
+  // new too. Concert (sounding)-pitch figures below are standard teaching
+  // ranges repeated across method books and band-orchestration references,
+  // but — unlike the entries above, which each cite one specific source —
+  // this pair wasn't checked against a single named source this session;
+  // treat the idiomatic band as a reasonable estimate, not a sourced fact,
+  // and revisit if a wind-band arrangement's sax/euphonium writing reads as
+  // off.
+  altoSax1: {
+    id: "altoSax1",
+    name: "Alto Saxophone 1",
+    clef: "treble",
+    transposeSemitones: 9, // Eb instrument: written a major 6th above sounding
+    rangeLow: 49, // Db3 sounding
+    rangeHigh: 81, // A5 sounding
+    polyphonic: false,
+    roleAffinity: "melody",
+    idiomaticLow: 58, // Bb3
+    idiomaticHigh: 75, // Eb5 — the sax's characteristic, easily-projected middle register
+  },
+  altoSax2: {
+    id: "altoSax2",
+    name: "Alto Saxophone 2",
+    clef: "treble",
+    transposeSemitones: 9,
+    rangeLow: 49,
+    rangeHigh: 81,
+    polyphonic: false,
+    roleAffinity: "harmony",
+    idiomaticLow: 58,
+    idiomaticHigh: 75,
+  },
+  euphonium: {
+    id: "euphonium",
+    name: "Euphonium",
+    clef: "bass",
+    transposeSemitones: 0,
+    rangeLow: 28, // E1 sounding
+    rangeHigh: 70, // Bb4 sounding
+    polyphonic: false,
+    roleAffinity: "bass",
+    // Similar profile to trombone's idiomatic band, comfortably a bit lower
+    // given the valve (vs. slide) mechanism.
+    idiomaticLow: 46, // Bb2
+    idiomaticHigh: 65, // F4
+  },
 };

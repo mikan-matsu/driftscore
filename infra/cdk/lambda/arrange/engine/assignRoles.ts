@@ -1,6 +1,7 @@
 import { triadPitchClasses } from "./chordProgression";
 import { renderCountermelody } from "./countermelody";
 import { embellishMelody } from "./embellishMelody";
+import type { EnsembleLayout } from "./ensembles";
 import { STYLES, placeToneInBand, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
 import type { EstimatedKey } from "./keyEstimation";
@@ -40,6 +41,22 @@ export function foldToRange(pitch: number, low: number, high: number): number {
   while (p < low) p += 12;
   while (p > high) p -= 12;
   return p;
+}
+
+/**
+ * Picks the octave-shift that centers `source` in `instrument`'s idiomatic
+ * band and folds it into the instrument's full technical range — the same
+ * "whole-phrase octave fit" used for the primary melody and bass instruments,
+ * factored out so a doubling instrument (wind-band melody/bass doublers)
+ * can reuse it verbatim to voice the *same* line in its own register,
+ * rather than re-deriving anything independently.
+ */
+function fitToInstrumentRegister(source: Melody, instrument: InstrumentDef, ensembleSize: number): Melody {
+  const shift = pickIdiomaticOctaveShift(source, instrument, ensembleSize);
+  const shifted: Melody = shift
+    ? { ...source, notes: source.notes.map((n) => ({ ...n, pitch: n.pitch + shift, pitches: n.pitches?.map((p) => p + shift) })) }
+    : source;
+  return foldMelodyToRange(shifted, instrument.rangeLow, instrument.rangeHigh);
 }
 
 function foldMelodyToRange(melody: Melody, low: number, high: number): Melody {
@@ -370,12 +387,18 @@ export function assignRoles(
   ensemble: InstrumentDef[],
   key: EstimatedKey,
   sections?: Section[],
+  /** Explicit doubling/section structure for a large ensemble (e.g. wind band) — see EnsembleLayout's own doc comment. Omitted (as for every existing preset and any custom ensemble) keeps today's pick-one-of-each behavior below, entirely unchanged. */
+  layout?: EnsembleLayout,
 ): ArrangementPart[] {
   const beatsPerBar = melody.beatsPerBar;
-  const melodyInstrument = pickMelodyInstrument(ensemble);
+  const melodyInstrument = layout ? ensemble.find((i) => i.id === layout.melody)! : pickMelodyInstrument(ensemble);
   const remaining = ensemble.filter((i) => i.id !== melodyInstrument.id);
-  const bassInstrument = pickBassInstrument(remaining);
-  const harmonyInstruments = remaining.filter((i) => i.id !== bassInstrument?.id);
+  const bassInstrument = layout ? ensemble.find((i) => i.id === layout.bass) ?? null : pickBassInstrument(remaining);
+  const harmonyInstruments = layout
+    ? remaining.filter(
+        (i) => i.id !== bassInstrument?.id && !layout.melodyDoublers.includes(i.id) && !layout.bassDoublers.includes(i.id),
+      )
+    : remaining.filter((i) => i.id !== bassInstrument?.id);
 
   const shift = pickIdiomaticOctaveShift(melody, melodyInstrument, ensemble.length);
   const shiftedMelody: Melody = shift
@@ -392,6 +415,24 @@ export function assignRoles(
   };
   const ceilings = computeMelodyCeilings(chords, melodyPart.melody.notes, beatsPerBar);
 
+  // Melody doublers (wind-band layout only): the *same* finalized melody
+  // line (already embellished, already folded to the primary instrument's
+  // register), just re-fit to each doubling instrument's own idiomatic
+  // register — real doubling instruments play the same notes, not an
+  // independently-embellished line, or the doubling reads as heterophony
+  // rather than the thick unison/octave "tutti" band sound it's meant to be.
+  const melodyDoublerParts: ArrangementPart[] = (layout?.melodyDoublers ?? []).map((id) => {
+    const instrument = ensemble.find((i) => i.id === id)!;
+    return {
+      id: instrument.id,
+      name: instrument.name,
+      clef: instrument.clef,
+      transposeSemitones: instrument.transposeSemitones,
+      polyphonic: instrument.polyphonic,
+      melody: fitToInstrumentRegister(melodyPart.melody, instrument, ensemble.length),
+    };
+  });
+
   // renderBassPart's octave is a fixed genre-style constant
   // (STYLES[genre].bassOctaveBase), the same for every instrument — without
   // this, an electric bass, tuba, and bassoon playing the same bass line all
@@ -400,124 +441,172 @@ export function assignRoles(
   // sits comfortably higher than tuba). Reuses the same whole-phrase octave
   // picker as the melody instrument, just with the bass instrument's own
   // idiomaticLow/High band.
-  const bassPart: ArrangementPart | null = bassInstrument
-    ? {
-        id: bassInstrument.id,
-        name: bassInstrument.name,
-        clef: bassInstrument.clef,
-        transposeSemitones: bassInstrument.transposeSemitones,
-        polyphonic: bassInstrument.polyphonic,
-        melody: (() => {
-          const rawBass: Melody = { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) };
-          const bassShift = pickIdiomaticOctaveShift(rawBass, bassInstrument, ensemble.length);
-          const shiftedBass = bassShift
-            ? { ...rawBass, notes: rawBass.notes.map((n) => ({ ...n, pitch: n.pitch + bassShift })) }
-            : rawBass;
-          return foldMelodyToRange(shiftedBass, bassInstrument.rangeLow, bassInstrument.rangeHigh);
-        })(),
-      }
-    : null;
+  const rawBass: Melody | null = bassInstrument ? { beatsPerBar, notes: renderBassPart(chords, genre, beatsPerBar) } : null;
+  const bassPart: ArrangementPart | null =
+    bassInstrument && rawBass
+      ? {
+          id: bassInstrument.id,
+          name: bassInstrument.name,
+          clef: bassInstrument.clef,
+          transposeSemitones: bassInstrument.transposeSemitones,
+          polyphonic: bassInstrument.polyphonic,
+          melody: fitToInstrumentRegister(rawBass, bassInstrument, ensemble.length),
+        }
+      : null;
   const bassFloors = computeBassFloors(chords, bassPart?.melody.notes ?? [], beatsPerBar, bassInstrument?.rangeHigh ?? 0);
+
+  // Bass doublers (wind-band layout only): same bass line, each instrument's
+  // own idiomatic register — a "low brass choir" doubling one line rather
+  // than each voicing independent harmony, which sidesteps asking these
+  // parts to freely voice chord tones at all (see CLAUDE.md's SATB
+  // register-overlap know-how for why that's still an open problem).
+  const bassDoublerParts: ArrangementPart[] = rawBass
+    ? (layout?.bassDoublers ?? []).map((id) => {
+        const instrument = ensemble.find((i) => i.id === id)!;
+        return {
+          id: instrument.id,
+          name: instrument.name,
+          clef: instrument.clef,
+          transposeSemitones: instrument.transposeSemitones,
+          polyphonic: instrument.polyphonic,
+          melody: fitToInstrumentRegister(rawBass, instrument, ensemble.length),
+        };
+      })
+    : [];
 
   const harmonyParts: ArrangementPart[] = [];
   const polyHarmony = harmonyInstruments.filter((i) => i.polyphonic);
   const restHarmony = harmonyInstruments.filter((i) => !i.polyphonic);
 
-  // Real arrangements don't harmonize or answer the melody constantly —
-  // texture builds over the piece. The countermelody (call-and-response
-  // filling the melody's rests, when there's a spare voice for it) and the
-  // harmony line (parallel diatonic-third "ハモリ") are reserved for
-  // different, non-overlapping spans — see textureRanges().
-  const { harmonyFromBeat, countermelodyFromBeat, countermelodyUntilBeat } = textureRanges(
-    sections,
-    beatsPerBar,
-    chords.length,
-  );
-
-  // Highest-register monophonic harmony instrument — closest to the
-  // melody's own register — carries the harmony line in the second half.
-  // Skipped entirely when there's no monophonic harmony instrument (e.g.
-  // piano trio, clarinet/guitar/bass) — a chordal (polyphonic) instrument
-  // doesn't fit this role, since it already voices full chords on its own.
-  const harmonyLineInstrument =
-    restHarmony.length > 0 ? restHarmony.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
-  // Next-highest-register remaining instrument answers the melody's rests in
-  // the first half — only when there's a THIRD monophonic harmony
-  // instrument to spare (e.g. brass quintet's horn, once trumpet 2 has the
-  // harmony line and trombone is left free to comp); otherwise every
-  // instrument just comps and no countermelody plays this arrangement.
-  const nonHarmonyLine = restHarmony.filter((i) => i.id !== harmonyLineInstrument?.id);
-  const countermelodyInstrument =
-    nonHarmonyLine.length >= 2 ? nonHarmonyLine.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
-
-  if (restHarmony.length > 0) {
-    const lowestRange = Math.min(...restHarmony.map((i) => i.rangeLow));
-    const lows = bassFloors.map((f) => Math.max(lowestRange, f));
-    const compingVoices = renderHarmonyVoices(chords, genre, beatsPerBar, restHarmony, ceilings, lows, ensemble.length);
-
-    for (const instrument of restHarmony) {
-      const comping = compingVoices.get(instrument.id) ?? [];
-      let notes = comping;
-
-      if (instrument.id === harmonyLineInstrument?.id) {
-        const harmonyLine = foldMelodyToRange(
-          renderParallelHarmony(melodyPart.melody, key),
-          instrument.rangeLow,
-          instrument.rangeHigh,
-        ).notes.filter((n) => n.start >= harmonyFromBeat);
-        notes = [...comping.filter((n) => n.start < harmonyFromBeat), ...harmonyLine];
-      } else if (instrument.id === countermelodyInstrument?.id) {
-        const startingPitch = Math.round(((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2);
-        // renderCountermelody voice-leads purely by nearest-octave-to-
-        // previous-note with no ceiling/floor of its own, so a long enough
-        // answering line can drift outside the instrument's technical range
-        // over time (found via validateArrangement.test.ts: trumpetBb2
-        // landing a couple semitones under its floor) — fold it back the
-        // same way the harmony-line branch above already does.
-        const answers = foldMelodyToRange(
-          { beatsPerBar, notes: renderCountermelody(
-            melodyPart.melody.notes,
-            chords,
-            beatsPerBar,
-            countermelodyUntilBeat,
-            startingPitch,
-            countermelodyFromBeat,
-          ) },
-          instrument.rangeLow,
-          instrument.rangeHigh,
-        ).notes;
-        notes = [
-          ...comping.filter((n) => n.start < countermelodyFromBeat),
-          ...answers,
-          ...comping.filter((n) => n.start >= countermelodyUntilBeat),
-        ];
+  if (layout) {
+    // Each group is its own independently-voiced SATB-style comping stack
+    // (renderHarmonyVoices), not one giant stack across the whole ensemble —
+    // see EnsembleLayout's doc comment for why. Harmony-line/countermelody
+    // (the flat-model's call-and-response texture below) isn't attempted
+    // here yet — a deliberate v1 scope cut for the wind-band preset, not an
+    // oversight; every instrument in a group just comps.
+    for (const groupIds of layout.harmonyGroups) {
+      const groupInstruments = groupIds.map((id) => ensemble.find((i) => i.id === id)!);
+      const lowestRange = Math.min(...groupInstruments.map((i) => i.rangeLow));
+      const lows = bassFloors.map((f) => Math.max(lowestRange, f));
+      const voices = renderHarmonyVoices(chords, genre, beatsPerBar, groupInstruments, ceilings, lows, ensemble.length);
+      for (const instrument of groupInstruments) {
+        harmonyParts.push({
+          id: instrument.id,
+          name: instrument.name,
+          clef: instrument.clef,
+          transposeSemitones: instrument.transposeSemitones,
+          polyphonic: instrument.polyphonic,
+          melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
+        });
       }
+    }
+  } else {
+    // Real arrangements don't harmonize or answer the melody constantly —
+    // texture builds over the piece. The countermelody (call-and-response
+    // filling the melody's rests, when there's a spare voice for it) and the
+    // harmony line (parallel diatonic-third "ハモリ") are reserved for
+    // different, non-overlapping spans — see textureRanges().
+    const { harmonyFromBeat, countermelodyFromBeat, countermelodyUntilBeat } = textureRanges(
+      sections,
+      beatsPerBar,
+      chords.length,
+    );
 
+    // Highest-register monophonic harmony instrument — closest to the
+    // melody's own register — carries the harmony line in the second half.
+    // Skipped entirely when there's no monophonic harmony instrument (e.g.
+    // piano trio, clarinet/guitar/bass) — a chordal (polyphonic) instrument
+    // doesn't fit this role, since it already voices full chords on its own.
+    const harmonyLineInstrument =
+      restHarmony.length > 0 ? restHarmony.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
+    // Next-highest-register remaining instrument answers the melody's rests in
+    // the first half — only when there's a THIRD monophonic harmony
+    // instrument to spare (e.g. brass quintet's horn, once trumpet 2 has the
+    // harmony line and trombone is left free to comp); otherwise every
+    // instrument just comps and no countermelody plays this arrangement.
+    const nonHarmonyLine = restHarmony.filter((i) => i.id !== harmonyLineInstrument?.id);
+    const countermelodyInstrument =
+      nonHarmonyLine.length >= 2 ? nonHarmonyLine.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top)) : null;
+
+    if (restHarmony.length > 0) {
+      const lowestRange = Math.min(...restHarmony.map((i) => i.rangeLow));
+      const lows = bassFloors.map((f) => Math.max(lowestRange, f));
+      const compingVoices = renderHarmonyVoices(chords, genre, beatsPerBar, restHarmony, ceilings, lows, ensemble.length);
+
+      for (const instrument of restHarmony) {
+        const comping = compingVoices.get(instrument.id) ?? [];
+        let notes = comping;
+
+        if (instrument.id === harmonyLineInstrument?.id) {
+          const harmonyLine = foldMelodyToRange(
+            renderParallelHarmony(melodyPart.melody, key),
+            instrument.rangeLow,
+            instrument.rangeHigh,
+          ).notes.filter((n) => n.start >= harmonyFromBeat);
+          notes = [...comping.filter((n) => n.start < harmonyFromBeat), ...harmonyLine];
+        } else if (instrument.id === countermelodyInstrument?.id) {
+          const startingPitch = Math.round(((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2);
+          // renderCountermelody voice-leads purely by nearest-octave-to-
+          // previous-note with no ceiling/floor of its own, so a long enough
+          // answering line can drift outside the instrument's technical range
+          // over time (found via validateArrangement.test.ts: trumpetBb2
+          // landing a couple semitones under its floor) — fold it back the
+          // same way the harmony-line branch above already does.
+          const answers = foldMelodyToRange(
+            { beatsPerBar, notes: renderCountermelody(
+              melodyPart.melody.notes,
+              chords,
+              beatsPerBar,
+              countermelodyUntilBeat,
+              startingPitch,
+              countermelodyFromBeat,
+            ) },
+            instrument.rangeLow,
+            instrument.rangeHigh,
+          ).notes;
+          notes = [
+            ...comping.filter((n) => n.start < countermelodyFromBeat),
+            ...answers,
+            ...comping.filter((n) => n.start >= countermelodyUntilBeat),
+          ];
+        }
+
+        harmonyParts.push({
+          id: instrument.id,
+          name: instrument.name,
+          clef: instrument.clef,
+          transposeSemitones: instrument.transposeSemitones,
+          polyphonic: instrument.polyphonic,
+          melody: { beatsPerBar, notes },
+        });
+      }
+    }
+
+    for (const instrument of polyHarmony) {
+      const lows = bassFloors.map((f) => Math.max(instrument.rangeLow, f));
       harmonyParts.push({
         id: instrument.id,
         name: instrument.name,
         clef: instrument.clef,
         transposeSemitones: instrument.transposeSemitones,
         polyphonic: instrument.polyphonic,
-        melody: { beatsPerBar, notes },
+        melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows) },
       });
     }
   }
 
-  for (const instrument of polyHarmony) {
-    const lows = bassFloors.map((f) => Math.max(instrument.rangeLow, f));
-    harmonyParts.push({
-      id: instrument.id,
-      name: instrument.name,
-      clef: instrument.clef,
-      transposeSemitones: instrument.transposeSemitones,
-      polyphonic: instrument.polyphonic,
-      melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows) },
-    });
-  }
-
-  const clearedHarmonyParts = harmonyParts.map((part) => {
-    const instrument = harmonyInstruments.find((i) => i.id === part.id);
+  // Bass doublers (wind-band layout only) are included here too: they sit
+  // much higher in their own register than the bass instrument they're
+  // doubling (e.g. trombone's technical ceiling overlaps a clarinet melody's
+  // idiomatic register, unlike tuba's), so — unlike the primary bass part,
+  // which sits low enough this has never been needed — they need the same
+  // melody-masking safety net every comping part gets. Clearing against
+  // `bassPart` alongside is effectively a no-op for them (their fitted
+  // register already sits above the bass line they're doubling), not a
+  // second constraint fighting the first.
+  const clearedHarmonyParts = [...harmonyParts, ...bassDoublerParts].map((part) => {
+    const instrument = ensemble.find((i) => i.id === part.id);
     const rangeLow = instrument?.rangeLow ?? -Infinity;
     const rangeHigh = instrument?.rangeHigh ?? Infinity;
     return {
@@ -528,6 +617,18 @@ export function assignRoles(
       },
     };
   });
+
+  if (layout) {
+    // Standard concert-band score order (see ensembles.ts's windBand preset
+    // and CLAUDE.md's engraving-conventions know-how) rather than the small
+    // presets' "melody first, then harmony high-to-low, then bass" order —
+    // `ensemble`'s own array order already encodes that, so just look each
+    // part up by id in that order instead of concatenating role groups.
+    const byId = new Map<string, ArrangementPart>(
+      [melodyPart, ...melodyDoublerParts, ...clearedHarmonyParts, ...(bassPart ? [bassPart] : [])].map((p) => [p.id, p]),
+    );
+    return ensemble.map((i) => byId.get(i.id)!);
+  }
 
   // Staff order top-to-bottom: melody, then harmony (high to low register), then bass at the very bottom.
   return [melodyPart, ...clearedHarmonyParts, ...(bassPart ? [bassPart] : [])];

@@ -257,14 +257,21 @@ export async function playArrangement(arrangement: Arrangement, bpm = 108) {
     }
 
     const voice = INSTRUMENT_VOICES[part.id];
+    // Tone's option-merging chokes on an explicit `envelope: undefined` (an
+    // instrument not yet in INSTRUMENT_VOICES) — `Object.keys(undefined)`
+    // throws "Cannot convert undefined or null to object" deep inside the
+    // constructor. Every bass-clef instrument used to have a table entry, so
+    // this never fired until new ones (wind-band's euphonium/trombone2)
+    // didn't; only spread the key in when there's a real envelope to give.
+    const envelopeOption = voice?.envelope ? { envelope: voice.envelope } : {};
     const synth: Playable =
       part.id === "guitar"
         ? createPluckGuitar(Tone)
         : part.clef === "bass"
-          ? new Tone.MonoSynth({ oscillator: { type: voice?.oscillator ?? "sine" }, envelope: voice?.envelope }).toDestination()
+          ? new Tone.MonoSynth({ oscillator: { type: voice?.oscillator ?? "sine" }, ...envelopeOption }).toDestination()
           : part.polyphonic
-            ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination()
-            : new Tone.Synth({ oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination();
+            ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: voice?.oscillator ?? "triangle" }, ...envelopeOption }).toDestination()
+            : new Tone.Synth({ oscillator: { type: voice?.oscillator ?? "triangle" }, ...envelopeOption }).toDestination();
     synths.push(synth);
 
     for (const note of part.melody.notes) {

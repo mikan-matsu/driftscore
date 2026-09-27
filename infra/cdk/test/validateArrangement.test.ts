@@ -42,7 +42,7 @@ const TWINKLE: Melody = repeatMelody(
 );
 
 const GENRES: Genre[] = ["jazz", "rock", "classical", "samba"];
-const ENSEMBLES = ["pianoTrio", "woodwindQuartet", "clarinetGuitarBass", "brassQuintet"];
+const ENSEMBLES = ["pianoTrio", "woodwindQuartet", "clarinetGuitarBass", "brassQuintet", "windBand"];
 const SONG_FORMS = ["theme", "full"] as const;
 
 describe("validateArrangement — mechanical sanity checks across the generation matrix", () => {
