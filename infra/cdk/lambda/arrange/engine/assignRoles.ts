@@ -35,7 +35,7 @@ function distanceFromBand(value: number, low: number, high: number): number {
 }
 
 /** Shifts a pitch by octaves until it lies within [low, high]. */
-function foldToRange(pitch: number, low: number, high: number): number {
+export function foldToRange(pitch: number, low: number, high: number): number {
   let p = pitch;
   while (p < low) p += 12;
   while (p > high) p -= 12;

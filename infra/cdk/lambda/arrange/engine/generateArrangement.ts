@@ -70,7 +70,7 @@ export function generateArrangement(
 
   const breakSection = sections.find((s) => s.kind === "break");
   if (breakSection) {
-    const applied = applyBreakHits(parts, drumVoices, chords, breakSection, beatsPerBar);
+    const applied = applyBreakHits(parts, drumVoices, chords, breakSection, beatsPerBar, preset.instruments);
     parts = applied.parts;
     drumVoices = applied.drumVoices;
   }

@@ -1,6 +1,12 @@
 import type { Melody, Note } from "@/features/piano-roll";
 import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol, Section, SectionKind } from "./arrangementTypes";
+import { assignGuitarTab, type FretPlacement } from "./guitarTab";
 import { DRUM_DISPLAY } from "./percussionMap";
+
+/** Parts notated on a 6-line TAB staff (string/fret) instead of standard notation — currently just the guitar. */
+function isTabPart(partId: string): boolean {
+  return partId === "guitar";
+}
 
 const SECTION_LABELS: Record<SectionKind, string> = {
   intro: "イントロ",
@@ -70,10 +76,15 @@ interface NoteXmlOptions {
    * raw id (e.g. two parts both starting at "n0"); the XML `id` attribute
    * must be unique across the whole document. */
   partId?: string;
+  /** String/fret placements for a TAB-notated part (see isTabPart), keyed by
+   * Note.id — precomputed once per part (assignGuitarTab) rather than per
+   * note, since idiomatic fret choice depends on the *previous* note's hand
+   * position, not just the current one. */
+  tab?: Map<string, FretPlacement[]>;
 }
 
 function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number, options: NoteXmlOptions = {}): string {
-  const { isPercussion = false, voice, stem, partId } = options;
+  const { isPercussion = false, voice, stem, partId, tab } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
@@ -98,6 +109,26 @@ function noteXml(durationBeats: number, note: Note | null, transposeSemitones: n
       })
       .join("");
   }
+  // TAB notation: still carries the real <pitch> (so anything reading pitch
+  // elsewhere is unaffected) alongside <technical><string>/<fret>, which is
+  // what actually tells OSMD which string/fret to draw — a plain <pitch>
+  // alone on a TAB staff renders as a floating, unplaced notehead. Never
+  // applies transposeSemitones here: that's standard notation's "written an
+  // octave above sounding" convention for guitar (see instruments.ts), which
+  // doesn't apply to TAB — a fret number already unambiguously encodes the
+  // exact sounding pitch, so writing it an octave off would just be wrong.
+  if (tab && note) {
+    const placements = tab.get(note.id) ?? [];
+    return pitches
+      .map((pitch, i) => {
+        const placement = placements[i];
+        const technicalXml = placement
+          ? `<notations><technical><string>${placement.string}</string><fret>${placement.fret}</fret></technical></notations>`
+          : "";
+        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${technicalXml}</note>`;
+      })
+      .join("");
+  }
   return pitches
     .map(
       (pitch, i) =>
@@ -119,7 +150,8 @@ function harmonyXml(chord: ChordSymbol): string {
   return `<harmony><root>${rootXml}</root>${KIND_XML[chord.quality]}</harmony>`;
 }
 
-function clefXml(clef: "treble" | "bass" | "percussion"): string {
+function clefXml(clef: "treble" | "bass" | "percussion", isTab: boolean): string {
+  if (isTab) return "<staff-details><staff-lines>6</staff-lines></staff-details><clef><sign>TAB</sign><line>5</line></clef>";
   if (clef === "percussion") return "<clef><sign>percussion</sign><line>2</line></clef>";
   return clef === "bass" ? "<clef><sign>F</sign><line>4</line></clef>" : "<clef><sign>G</sign><line>2</line></clef>";
 }
@@ -181,10 +213,13 @@ function partMeasuresXml(
   pageBreaks?: Set<number>,
 ): string {
   const isPercussion = part.clef === "percussion";
+  const isTab = isTabPart(part.id);
   const hasSecondVoice = !!part.secondaryVoice;
   const primaryOptions: NoteXmlOptions = isPercussion
     ? { isPercussion: true, voice: 1, stem: "up", partId: part.id }
-    : { partId: part.id };
+    : isTab
+      ? { partId: part.id, tab: assignGuitarTab(part.melody.notes) }
+      : { partId: part.id };
   const measures = melodyToMeasures(part.melody, part.transposeSemitones, primaryOptions);
   while (measures.length < measureCount) {
     measures.push([noteXml(beatsPerBar, null, part.transposeSemitones, primaryOptions)]);
@@ -205,7 +240,7 @@ function partMeasuresXml(
     .map((notesXml, i) => {
       const attrs =
         i === 0
-          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef)}${transposeXml(part.transposeSemitones)}</attributes>`
+          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef, isTab)}${isTab ? "" : transposeXml(part.transposeSemitones)}</attributes>`
           : "";
       // A <print new-system="yes"/> at measure i tells OSMD explicitly where
       // to break to a new line, rather than leaving it to auto-fit — see

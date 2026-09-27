@@ -1,6 +1,8 @@
+import { foldToRange } from "./assignRoles";
 import { triadPitchClasses } from "./chordProgression";
 import type { DrumVoices } from "./drums";
 import { GM_HIHAT_CLOSED, GM_KICK, GM_SNARE } from "./drums";
+import type { InstrumentDef } from "./instruments";
 import type { ArrangementPart, ChordSymbol, Note, Section } from "./types";
 
 interface Hit {
@@ -17,12 +19,23 @@ const HIT_PATTERN: Hit[] = [
   { offset: 2, duration: 2 },
 ];
 
-/** Resolves each of `prevPitches` (one per existing voice) to the nearest octave of a chord tone, cycling through `tones` if there are more voices than tones. */
-function resolveVoicing(prevPitches: number[], tones: number[]): number[] {
+/**
+ * Resolves each of `prevPitches` (one per existing voice) to the nearest
+ * octave of a chord tone, cycling through `tones` if there are more voices
+ * than tones, then folds into the instrument's own technical range —
+ * "nearest octave to the previous note" has no floor of its own, so a
+ * `prev` sitting near the edge of the instrument's range can round to a
+ * neighboring octave that's actually outside it (found via a concrete
+ * repro: a solo-section melody note left `prev` a few semitones above the
+ * top of clarinetBb's range, and the nearest-octave hit landed a full
+ * octave below the bottom of it instead).
+ */
+function resolveVoicing(prevPitches: number[], tones: number[], rangeLow: number, rangeHigh: number): number[] {
   const voices = prevPitches.length > 0 ? prevPitches : [60];
   return voices.map((prev, i) => {
     const pc = tones[i % tones.length];
-    return pc + 12 * Math.round((prev - pc) / 12);
+    const pitch = pc + 12 * Math.round((prev - pc) / 12);
+    return foldToRange(pitch, rangeLow, rangeHigh);
   });
 }
 
@@ -50,6 +63,7 @@ export function applyBreakHits(
   chords: ChordSymbol[],
   breakSection: Section,
   beatsPerBar: number,
+  instruments: InstrumentDef[],
 ): { parts: ArrangementPart[]; drumVoices: DrumVoices | null } {
   const breakStart = breakSection.startBar * beatsPerBar;
   const breakEnd = breakStart + breakSection.barCount * beatsPerBar;
@@ -57,6 +71,9 @@ export function applyBreakHits(
   const hits = HIT_PATTERN.filter((h) => h.offset + h.duration <= beatsPerBar);
 
   const newParts = parts.map((part) => {
+    const instrument = instruments.find((i) => i.id === part.id);
+    const rangeLow = instrument?.rangeLow ?? 0;
+    const rangeHigh = instrument?.rangeHigh ?? 127;
     const prevPitches = lastPitchesBefore(part.melody.notes, breakStart);
     const kept = part.melody.notes.filter((n) => n.start < breakStart || n.start >= breakEnd);
     const inserted: Note[] = [];
@@ -66,7 +83,7 @@ export function applyBreakHits(
       if (!chord) continue;
       const tones = triadPitchClasses(chord.root, chord.quality);
       for (const hit of hits) {
-        const pitches = resolveVoicing(prevPitches, tones);
+        const pitches = resolveVoicing(prevPitches, tones, rangeLow, rangeHigh);
         inserted.push({
           id: `bk${id++}`,
           pitch: pitches[0],

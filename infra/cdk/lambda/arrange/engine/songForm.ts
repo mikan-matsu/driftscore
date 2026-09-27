@@ -147,7 +147,12 @@ export function buildSongForm(
   addSection("theme", themeBars, themeMelody, themeChords);
   for (let lap = 0; lap < soloLaps; lap++) {
     const soloStartPitch = themeMelody.notes[0]?.pitch ?? key.root + 72;
-    const soloNotes = renderSolo(themeChords, beatsPerBar, genreUsesSeventh, soloStartPitch);
+    // Offset by a step coprime with solo.ts's pattern count (20) so
+    // consecutive laps over the same chord changes don't play the identical
+    // line — without this, every chorus of a multi-lap solo was note-for-note
+    // the same phrase (renderSolo always starts its bar-pattern cycle at
+    // index 0 otherwise).
+    const soloNotes = renderSolo(themeChords, beatsPerBar, genreUsesSeventh, soloStartPitch, lap * 7);
     addSection("solo", themeBars, { beatsPerBar, notes: soloNotes }, themeChords);
   }
   const tonicQuality = key.isMinor ? MINOR_QUALITIES[0] : MAJOR_QUALITIES[0];

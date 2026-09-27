@@ -20,6 +20,40 @@ interface Disposable {
   dispose(): void;
 }
 
+/**
+ * A square-wave PolySynth reads as an organ/chiptune, not a guitar — no
+ * amount of envelope tweaking on a plain oscillator gets the characteristic
+ * pluck-then-decay of a real (or even a basic sampled) string. Tone's
+ * PluckSynth implements actual Karplus-Strong string synthesis, which is
+ * what genuinely produces that sound procedurally, no sample library needed.
+ * It has no triggerAttackRelease of its own (a plucked string's decay is
+ * physically modeled, not an ADSR release you trigger), and each instance is
+ * monophonic — so this pools a handful of them and round-robins across the
+ * pool to cover the comping's simultaneous chord tones, exposing the same
+ * Playable interface (triggerAttackRelease) the rest of this file expects.
+ * 6 voices, same as a real guitar's string count — comfortably covers this
+ * engine's chord voicings (2-4 simultaneous tones, see genreStyles.ts).
+ */
+function createPluckGuitar(Tone: typeof import("tone")): Playable {
+  const POOL_SIZE = 6;
+  const voices = Array.from({ length: POOL_SIZE }, () =>
+    new Tone.PluckSynth({ attackNoise: 1, dampening: 3000, resonance: 0.85 }).toDestination(),
+  );
+  let next = 0;
+  return {
+    triggerAttackRelease(note, duration, time) {
+      const voice = voices[next];
+      next = (next + 1) % voices.length;
+      const startTime = time ?? Tone.now();
+      voice.triggerAttack(note, startTime);
+      voice.triggerRelease(startTime + duration);
+    },
+    dispose() {
+      for (const v of voices) v.dispose();
+    },
+  };
+}
+
 /** Kick/snare/hihat/ride each need a different Tone.js instrument shape — none of
  * them take a pitched "note" argument the way melodic synths do, so this
  * normalizes them to a single (duration, time) trigger. Built from Tone's own
@@ -180,9 +214,10 @@ const INSTRUMENT_VOICES: Record<string, { oscillator: BasicOscillatorType; envel
   trombone: { oscillator: "sawtooth", envelope: { attack: 0.03, decay: 0.1, sustain: 0.75, release: 0.2 } },
   // Poly (chordal) instruments — a fast decay to near-zero sustain reads as
   // "struck/plucked" rather than "held", the main audible difference
-  // between piano/guitar comping and a sustained wind/brass line.
+  // between piano comping and a sustained wind/brass line. Guitar isn't
+  // here: it gets its own PluckSynth-based voice (createPluckGuitar) instead
+  // of an oscillator, since no oscillator/envelope shape reads as "guitar".
   piano: { oscillator: "triangle", envelope: { attack: 0.005, decay: 0.6, sustain: 0.05, release: 0.5 } },
-  guitar: { oscillator: "square", envelope: { attack: 0.005, decay: 0.3, sustain: 0.05, release: 0.4 } },
   // Bass-role instruments.
   electricBass: { oscillator: "sine", envelope: { attack: 0.01, decay: 0.15, sustain: 0.8, release: 0.15 } },
   tuba: { oscillator: "sine", envelope: { attack: 0.04, decay: 0.15, sustain: 0.85, release: 0.25 } },
@@ -223,11 +258,13 @@ export async function playArrangement(arrangement: Arrangement, bpm = 108) {
 
     const voice = INSTRUMENT_VOICES[part.id];
     const synth: Playable =
-      part.clef === "bass"
-        ? new Tone.MonoSynth({ oscillator: { type: voice?.oscillator ?? "sine" }, envelope: voice?.envelope }).toDestination()
-        : part.polyphonic
-          ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination()
-          : new Tone.Synth({ oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination();
+      part.id === "guitar"
+        ? createPluckGuitar(Tone)
+        : part.clef === "bass"
+          ? new Tone.MonoSynth({ oscillator: { type: voice?.oscillator ?? "sine" }, envelope: voice?.envelope }).toDestination()
+          : part.polyphonic
+            ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination()
+            : new Tone.Synth({ oscillator: { type: voice?.oscillator ?? "triangle" }, envelope: voice?.envelope }).toDestination();
     synths.push(synth);
 
     for (const note of part.melody.notes) {
