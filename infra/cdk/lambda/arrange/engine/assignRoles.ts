@@ -1,7 +1,7 @@
 import { triadPitchClasses } from "./chordProgression";
 import { renderCountermelody } from "./countermelody";
 import { embellishMelody } from "./embellishMelody";
-import { STYLES, renderBassPart, renderChordsPart } from "./genreStyles";
+import { STYLES, placeToneInBand, renderBassPart, renderChordsPart } from "./genreStyles";
 import type { InstrumentDef } from "./instruments";
 import type { EstimatedKey } from "./keyEstimation";
 import { renderParallelHarmony } from "./parallelHarmony";
@@ -136,6 +136,45 @@ function computeBassFloors(chords: ChordSymbol[], bassNotes: Note[], beatsPerBar
 }
 
 /**
+ * Finds the smallest-magnitude octave shift (0, then ±12, ±24, ...) that
+ * keeps `pitches` within [rangeLow, rangeHigh] and, if possible, strictly
+ * below `melodyBoundary` (the melody's lowest overlapping pitch — comping
+ * must sit below the tune, never doubling or masking it) and strictly above
+ * `bassBoundary` (the bass's highest overlapping pitch). Melody-clearance is
+ * the harder constraint: two sequential single-direction passes (melody
+ * then bass) could shift a note up to escape the bass and land right back
+ * on top of the melody the first pass had just cleared — found via a
+ * concrete repro (piano comping doubling the melody in unison mid-solo-
+ * section, `songForm: "full"`). Searching both constraints together avoids
+ * that. When no shift satisfies both, melody-clearance wins (a moment of
+ * doubling near the bass is a lesser defect than the comping audibly
+ * masking the tune); if not even that is possible within range, the
+ * smallest in-range shift is kept and the overlap is accepted, same
+ * fallback as before this was split out.
+ */
+function bestOverlapShift(
+  pitches: number[],
+  melodyBoundary: number | null,
+  bassBoundary: number | null,
+  rangeLow: number,
+  rangeHigh: number,
+): number {
+  const candidates: number[] = [0];
+  for (let octaves = 1; octaves <= 4; octaves++) candidates.push(-12 * octaves, 12 * octaves);
+
+  const inRange = (shift: number) => Math.min(...pitches) + shift >= rangeLow && Math.max(...pitches) + shift <= rangeHigh;
+  const clearsMelody = (shift: number) => melodyBoundary === null || Math.max(...pitches) + shift < melodyBoundary;
+  const clearsBass = (shift: number) => bassBoundary === null || Math.min(...pitches) + shift > bassBoundary;
+
+  const inRangeCandidates = candidates.filter(inRange);
+  const both = inRangeCandidates.find((s) => clearsMelody(s) && clearsBass(s));
+  if (both !== undefined) return both;
+  const melodyOnly = inRangeCandidates.find(clearsMelody);
+  if (melodyOnly !== undefined) return melodyOnly;
+  return inRangeCandidates[0] ?? 0;
+}
+
+/**
  * Bar-level ceilings/floors handle the normal case, but a comping note that
  * sustains across a bar line (e.g. a syncopated hit landing just before the
  * barline) can still land in a register the *next* bar's melody or bass
@@ -143,32 +182,16 @@ function computeBassFloors(chords: ChordSymbol[], bassNotes: Note[], beatsPerBar
  * time overlap rather than bar membership, shifting the whole simultaneous
  * note (never per-tone, to keep the voicing's shape) out of the way.
  */
-function clearOverlaps(
-  notes: Note[],
-  other: Note[],
-  direction: "below" | "above",
-  rangeLow: number,
-  rangeHigh: number,
-): Note[] {
+function clearOverlaps(notes: Note[], melody: Note[], bass: Note[], rangeLow: number, rangeHigh: number): Note[] {
   return notes.map((n) => {
     const pitches = n.pitches ?? [n.pitch];
-    const overlapping = other.filter((o) => o.start < n.start + n.duration && n.start < o.start + o.duration);
-    if (overlapping.length === 0) return n;
-    let shift = 0;
-    // Shifting a whole octave at a time to clear a collision has no bound
-    // of its own — a low enough melody note (or high enough bass note)
-    // could otherwise push shift past the instrument's actual technical
-    // range (found via validateArrangement.test.ts). Stop at the range
-    // edge and accept the overlap rather than hand the instrument an
-    // unplayable pitch; a moment of voices crossing is a lesser defect
-    // than a pitch outside the instrument's range entirely.
-    if (direction === "below") {
-      const boundary = Math.min(...overlapping.map((o) => o.pitch));
-      while (Math.max(...pitches) + shift >= boundary && Math.min(...pitches) + shift - 12 >= rangeLow) shift -= 12;
-    } else {
-      const boundary = Math.max(...overlapping.map((o) => o.pitch));
-      while (Math.min(...pitches) + shift <= boundary && Math.max(...pitches) + shift + 12 <= rangeHigh) shift += 12;
-    }
+    const overlappingMelody = melody.filter((o) => o.start < n.start + n.duration && n.start < o.start + o.duration);
+    const overlappingBass = bass.filter((o) => o.start < n.start + n.duration && n.start < o.start + o.duration);
+    if (overlappingMelody.length === 0 && overlappingBass.length === 0) return n;
+
+    const melodyBoundary = overlappingMelody.length > 0 ? Math.min(...overlappingMelody.map((o) => o.pitch)) : null;
+    const bassBoundary = overlappingBass.length > 0 ? Math.max(...overlappingBass.map((o) => o.pitch)) : null;
+    const shift = bestOverlapShift(pitches, melodyBoundary, bassBoundary, rangeLow, rangeHigh);
     if (shift === 0) return n;
     const shifted = pitches.map((p) => p + shift);
     return { ...n, pitch: shifted[0], pitches: shifted.length > 1 ? shifted : undefined };
@@ -273,17 +296,17 @@ function renderHarmonyVoices(
     const seventh = (chord.root + (chord.quality === "maj" ? 11 : 10)) % 12;
     const tones = style.useSeventh ? [...triad, seventh] : triad;
     const pattern = style.chordPatterns[barIndex % style.chordPatterns.length];
-    const ceiling = ceilings[barIndex];
-    const low = lows[barIndex];
     const measureEnd = (chord.bar + 1) * beatsPerBar;
 
     for (const event of pattern) {
       const voiceCount = Math.min(byRegister.length, tones.length);
-      let above = ceiling;
       const start = chord.bar * beatsPerBar + event.offset;
       let duration = event.duration;
       // Clamp duration to not exceed measure boundary (handles floating-point accumulation)
       if (start + duration > measureEnd) duration = measureEnd - start;
+      const ceiling = ceilings[barIndex];
+      const low = lows[barIndex];
+      let above = ceiling;
       for (let i = 0; i < voiceCount; i++) {
         const instrument = byRegister[i];
         const pc = tones[tones.length - 1 - i];
@@ -300,6 +323,20 @@ function renderHarmonyVoices(
         while (pitch >= above && pitch - 12 >= instrument.rangeLow) pitch -= 12;
         // Then try to clear the bass too, without breaking the ceiling or the instrument's own technical ceiling.
         while (pitch < low && pitch + 12 < above && pitch + 12 <= instrument.rangeHigh) pitch += 12;
+        // A whole-octave nudge is too coarse when [low, above) is narrower
+        // than an octave but this pitch class still has *some* octave
+        // that fits — e.g. found via a concrete repro: 2nd trumpet's comping
+        // note landed exactly in unison with the melody because neither a
+        // -12 nor a +12 step could clear the melody ceiling and the bass
+        // floor at once, even though a nearer octave of the same pitch
+        // class did. Re-place within the instrument's own effective band
+        // (intersected with [low, above)) instead of only ever moving by
+        // whole octaves from the voice-led candidate.
+        if (pitch >= above || pitch < low) {
+          const bandLow = Math.max(low, instrument.rangeLow);
+          const bandHigh = Math.min(above, instrument.rangeHigh);
+          if (bandLow < bandHigh) pitch = placeToneInBand(pc, bandHigh, bandLow, prev);
+        }
         // Nearest-voice voice-leading can drift the part away from its
         // idiomatic register over a stretch of low ceilings/high floors and
         // then never find its way back once the constraint eases, since
@@ -487,13 +524,7 @@ export function assignRoles(
       ...part,
       melody: {
         ...part.melody,
-        notes: clearOverlaps(
-          clearOverlaps(part.melody.notes, melodyPart.melody.notes, "below", rangeLow, rangeHigh),
-          bassPart?.melody.notes ?? [],
-          "above",
-          rangeLow,
-          rangeHigh,
-        ),
+        notes: clearOverlaps(part.melody.notes, melodyPart.melody.notes, bassPart?.melody.notes ?? [], rangeLow, rangeHigh),
       },
     };
   });
