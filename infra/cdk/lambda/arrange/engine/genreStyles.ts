@@ -265,15 +265,99 @@ function renderPatterns(
   return notes;
 }
 
+/**
+ * Guitar-specific comping patterns, mixed into (never replacing) each
+ * genre's shared `STYLES[genre].chordPatterns` — see renderChordsPart. Every
+ * other polyphonic harmony instrument (piano, and any custom-ensemble pick
+ * routed through the same "chordal comping" role) played identically
+ * voiced, identically rhythmed block chords as guitar, which doesn't read
+ * as guitar at all: real guitar parts lean on idioms a piano voicing
+ * doesn't — palm-muted 8th/16th-note "chugging" power chords (root+5th,
+ * `tones: [0, 2]`, skipping the color-bearing 3rd the way an actual power
+ * chord does), single-note/dyad riffs built from the chord's root and 5th
+ * rather than full triads, a thumb-and-fingers bass-note/chord-strum split
+ * (bossa/samba's characteristic alternating-bass "batida"), and fingerstyle
+ * arpeggiation (single notes in sequence, not simultaneous). `tones` indexes
+ * are always [root, third, fifth, (seventh)] regardless of a chord's actual
+ * voiced octaves (see chordToneStack) — `[0]` is always "the root", `[0, 2]`
+ * always "root+5th", independent of inversion.
+ */
+const GUITAR_CHORD_PATTERNS: Partial<Record<Genre, BarEvent[][]>> = {
+  rock: [
+    // Palm-muted chugging: straight 8th-note power-chord stabs throughout.
+    [
+      { offset: 0, duration: 0.5, tones: [0, 2] },
+      { offset: 0.5, duration: 0.5, tones: [0, 2] },
+      { offset: 1, duration: 0.5, tones: [0, 2] },
+      { offset: 1.5, duration: 0.5, tones: [0, 2] },
+      { offset: 2, duration: 0.5, tones: [0, 2] },
+      { offset: 2.5, duration: 0.5, tones: [0, 2] },
+      { offset: 3, duration: 0.5, tones: [0, 2] },
+      { offset: 3.5, duration: 0.5, tones: [0, 2] },
+    ],
+    // Single-note riff: root/5th movement with a syncopated push, not a
+    // held chord — the idiom a block-chord voicing can never produce.
+    [
+      { offset: 0, duration: 0.75, tones: [0] },
+      { offset: 0.75, duration: 0.25, tones: [0] },
+      { offset: 1.5, duration: 0.5, tones: [2] },
+      { offset: 2, duration: 1, tones: [0] },
+      { offset: 3, duration: 0.5, tones: [0] },
+      { offset: 3.5, duration: 0.5, tones: [2] },
+    ],
+  ],
+  jazz: [
+    // Shell-voicing stabs (root+7th only, no 3rd/5th) — closer to how a
+    // jazz guitarist actually comps (2-3 note voicings) than piano's fuller
+    // triad/seventh stacks. Falls back to root+3rd if this genre/chord ever
+    // renders without a 7th (useSeventh is true for jazz, but stay safe).
+    [
+      { offset: 1, duration: 0.5, tones: [0, 3] },
+      { offset: 3, duration: 0.5, tones: [0, 3] },
+    ],
+    [
+      { offset: 0.5, duration: 0.5, tones: [0, 3] },
+      { offset: 2, duration: 0.5, tones: [0, 3] },
+      { offset: 3.5, duration: 0.5, tones: [0, 3] },
+    ],
+  ],
+  samba: [
+    // Bossa "batida": alternating bass note (thumb) on 1/3, chord strum
+    // (fingers) on the offbeats — a real fingerstyle split, not a block
+    // chord repeated on every hit like the shared samba comping cell.
+    [
+      { offset: 0, duration: 0.5, tones: [0] },
+      { offset: 0.5, duration: 0.5, tones: [1, 2, 3] },
+      { offset: 1.5, duration: 0.5, tones: [1, 2, 3] },
+      { offset: 2, duration: 0.5, tones: [2] },
+      { offset: 2.5, duration: 0.5, tones: [1, 2, 3] },
+      { offset: 3.5, duration: 0.5, tones: [1, 2, 3] },
+    ],
+  ],
+  classical: [
+    // Fingerstyle arpeggio (Alberti-bass-like): one note at a time, never
+    // simultaneous — a idiom block chords can't express at all.
+    [
+      { offset: 0, duration: 1, tones: [0] },
+      { offset: 1, duration: 1, tones: [2] },
+      { offset: 2, duration: 1, tones: [1] },
+      { offset: 3, duration: 1, tones: [2] },
+    ],
+  ],
+};
+
 export function renderChordsPart(
   chords: ChordSymbol[],
   genre: Genre,
   beatsPerBar: number,
   ceilings: number[],
   lows: number[],
+  instrumentId?: string,
 ): Note[] {
   const style = STYLES[genre];
-  return renderPatterns(style.chordPatterns, chords, beatsPerBar, style.useSeventh, ceilings, lows);
+  const guitarPatterns = instrumentId === "guitar" ? GUITAR_CHORD_PATTERNS[genre] : undefined;
+  const patterns = guitarPatterns ? [...style.chordPatterns, ...guitarPatterns] : style.chordPatterns;
+  return renderPatterns(patterns, chords, beatsPerBar, style.useSeventh, ceilings, lows);
 }
 
 /** Bass has no melody-ceiling constraint — it just anchors low, around bassOctaveBase, every bar. */

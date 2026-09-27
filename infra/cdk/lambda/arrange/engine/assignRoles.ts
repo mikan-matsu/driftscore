@@ -591,7 +591,7 @@ export function assignRoles(
         clef: instrument.clef,
         transposeSemitones: instrument.transposeSemitones,
         polyphonic: instrument.polyphonic,
-        melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows) },
+        melody: { beatsPerBar, notes: renderChordsPart(chords, genre, beatsPerBar, ceilings, lows, instrument.id) },
       });
     }
   }
