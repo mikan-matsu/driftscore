@@ -88,59 +88,163 @@ const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ
 const FILL_EVERY_BARS = 8;
 
 // One bar's worth of "something changes" energy in place of the steady
-// groove — a real arranger doesn't fill every 8 bars identically, but a
-// single fixed fill per genre is a reasonable first cut (a genuinely varied
-// fill-pattern table, à la solo.ts's ~20 patterns, is a natural follow-up if
-// this reads as too repetitive once heard).
-const ROCK_FILL: DrumHit[] = [
-  { offset: 0, duration: 0.5, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
-  { offset: 0.5, duration: 0.5, pitches: [GM_SNARE] },
-  { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
-  { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
-  { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
-  { offset: 2.5, duration: 0.5, pitches: [GM_HIGH_TOM] },
-  { offset: 3, duration: 0.5, pitches: [GM_MID_TOM] },
-  { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
+// groove — a pool of a few variants per genre (à la solo.ts's ~20 melodic
+// patterns, just a much smaller pool since a fill is a once-every-8-bars
+// event, not something heard on every beat) rather than one fixed fill
+// repeating identically at every 8-bar mark, which read as too repetitive
+// once a "full" song-form arrangement (with many fill occurrences) was
+// actually generated and listened to.
+const ROCK_FILLS: DrumHit[][] = [
+  // Classic snare buildup into descending toms.
+  [
+    { offset: 0, duration: 0.5, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+    { offset: 0.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
+    { offset: 2.5, duration: 0.5, pitches: [GM_HIGH_TOM] },
+    { offset: 3, duration: 0.5, pitches: [GM_MID_TOM] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
+  ],
+  // Kick-and-snare "stutter" fill, ending on a held snare roll-in.
+  [
+    { offset: 0, duration: 0.5, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.5, pitches: [GM_KICK] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.25, pitches: [GM_HIGH_TOM] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_MID_TOM] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_LOW_TOM] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_LOW_TOM] },
+    { offset: 3, duration: 1, pitches: [GM_SNARE] },
+  ],
+  // Full-bar 16th-note cascade — the most dramatic of the three, snare
+  // into descending toms into a final kick/snare punch.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.25, pitches: [GM_HIGH_TOM] },
+    { offset: 1.25, duration: 0.25, pitches: [GM_HIGH_TOM] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_MID_TOM] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_MID_TOM] },
+    { offset: 2, duration: 0.25, pitches: [GM_LOW_TOM] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_LOW_TOM] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_KICK] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3, duration: 0.5, pitches: [GM_KICK] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_SNARE] },
+  ],
 ];
 
 // A "drum trade" shape — ride/kick hold beat 1, then toms take over,
 // idiomatic for how a jazz kit punctuates a form without breaking the swing
 // feel outright.
-const JAZZ_FILL: DrumHit[] = [
-  { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
-  { offset: 0.75, duration: 0.25, pitches: [GM_RIDE] },
-  { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
-  { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
-  { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
-  { offset: 2.5, duration: 0.5, pitches: [GM_MID_TOM] },
-  { offset: 3, duration: 0.5, pitches: [GM_LOW_TOM] },
-  { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
+const JAZZ_FILLS: DrumHit[][] = [
+  [
+    { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_RIDE] },
+    { offset: 1, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.5, pitches: [GM_HIGH_TOM] },
+    { offset: 2.5, duration: 0.5, pitches: [GM_MID_TOM] },
+    { offset: 3, duration: 0.5, pitches: [GM_LOW_TOM] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
+  ],
+  // Swung (0.75/0.25) snare-into-toms, keeping the same long-short feel the
+  // regular jazz groove has instead of switching to straight 8ths.
+  [
+    { offset: 0, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.75, pitches: [GM_SNARE] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.75, pitches: [GM_HIGH_TOM] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_MID_TOM] },
+    { offset: 3, duration: 0.75, pitches: [GM_LOW_TOM] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_LOW_TOM] },
+  ],
+  // Lighter, mostly-snare fill that only reaches for toms right at the end,
+  // returning to ride+kick on the last 8th to cue the groove's return.
+  [
+    { offset: 0, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 0.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.5, pitches: [GM_HIGH_TOM] },
+    { offset: 1.5, duration: 0.5, pitches: [GM_MID_TOM] },
+    { offset: 2, duration: 0.5, pitches: [GM_LOW_TOM] },
+    { offset: 2.5, duration: 0.5, pitches: [GM_SNARE] },
+    { offset: 3, duration: 0.75, pitches: [GM_RIDE, GM_KICK] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_RIDE] },
+  ],
 ];
 
-// Keeps the maracas 16th-note shimmer going throughout (so it still reads
-// as samba, not a generic fill dropped on top of it) — only the back half
-// trades the agogô/side-stick pattern for a descending tom run, like a
-// small "chamada" (call) break.
-const SAMBA_FILL: DrumHit[] = [
-  { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
-  { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
-  { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
-  { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
-  { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_AGOGO_HIGH] },
-  { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
-  { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
-  { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
-  { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
-  { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM, GM_KICK] },
-  { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
-  { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
-  { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+// Keeps the maracas 16th-note shimmer going throughout for every variant (so
+// it still reads as samba, not a generic fill dropped on top of it).
+const SAMBA_FILLS: DrumHit[][] = [
+  // Back half only trades the agogô/side-stick pattern for a descending
+  // tom run, like a small "chamada" (call) break.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
+    { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
+    { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_AGOGO_HIGH] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM, GM_KICK] },
+    { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+  ],
+  // Bigger break — toms across the whole bar, not just the back half.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
+    { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_KICK, GM_HIGH_TOM] },
+    { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+  ],
+  // Syncopated side-stick "chamada" call — more clave-like intensification,
+  // toms saved for just the last beat.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_KICK] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
+    { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_KICK] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
+    { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
+    { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS, GM_LOW_TOM] },
+  ],
 ];
 
-const FILL_PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_FILL, jazz: JAZZ_FILL, samba: SAMBA_FILL };
+const FILL_PATTERNS: Partial<Record<Genre, DrumHit[][]>> = { rock: ROCK_FILLS, jazz: JAZZ_FILLS, samba: SAMBA_FILLS };
 
 export interface DrumVoices {
   /** Hihat/snare/ride — standard drum notation convention: stems up. */
@@ -166,18 +270,25 @@ export interface DrumVoices {
 export function renderDrumPart(chords: ChordSymbol[], genre: Genre, beatsPerBar: number): DrumVoices | null {
   const pattern = PATTERNS[genre];
   if (!pattern) return null;
-  const fill = FILL_PATTERNS[genre] ?? pattern;
+  const fillPool = FILL_PATTERNS[genre] ?? [pattern];
 
   const up: Note[] = [];
   const down: Note[] = [];
   let upId = 0;
   let downId = 0;
+  let fillCount = 0;
   chords.forEach((chord, barIndex) => {
     // Every FILL_EVERY_BARS-th bar swaps in a fill instead of the steady
     // groove — periodic punctuation, not tied to song-form section
     // boundaries (renderDrumPart isn't given `sections`, only a flat bar
-    // count from the caller's chord list).
-    const barPattern = (barIndex + 1) % FILL_EVERY_BARS === 0 ? fill : pattern;
+    // count from the caller's chord list). Successive fills cycle through
+    // the genre's pool in order rather than repeating the same one — with
+    // only 3 variants and fills spaced 8 bars apart, a simple sequential
+    // index (not solo.ts's coprime-offset trick, which exists to dodge a
+    // *coincidental* alignment between two different cycle lengths) is
+    // enough to avoid a fill ever repeating twice in a row.
+    const isFillBar = (barIndex + 1) % FILL_EVERY_BARS === 0;
+    const barPattern = isFillBar ? fillPool[fillCount++ % fillPool.length] : pattern;
     for (const hit of barPattern) {
       const start = chord.bar * beatsPerBar + hit.offset;
       const upPitches = hit.pitches.filter((p) => p !== GM_KICK).sort((a, b) => a - b);

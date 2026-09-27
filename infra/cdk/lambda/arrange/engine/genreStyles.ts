@@ -168,11 +168,24 @@ export function placeToneInBand(pc: number, ceiling: number, low: number, target
     }
   }
   if (best !== null) return best;
-  // No octave of this pitch class fits inside [low, ceiling) at all — clamp
-  // to whichever bound is nearer rather than leaving it arbitrarily far off.
+  // No octave of this pitch class fits inside [low, ceiling) at all. `low`
+  // and `ceiling` here are already clamped to the caller's instrument's own
+  // *technical* range (never past its real floor/ceiling — see
+  // renderHarmonyVoices' bandLow/bandHigh), so of the two, staying inside
+  // `low` matters more: it's the difference between "brushes the bass" and
+  // "physically unplayable". Fixing `ceiling` first, then `low`, means the
+  // final result honors `low` even if that then re-violates `ceiling` —
+  // fixing them in the other order (as a previous version of this code did)
+  // could walk back out past `low` again while chasing `ceiling`, when the
+  // gap between them is narrower than an octave (found via a concrete
+  // repro: a wind-band harmony group's tighter per-group ceiling squeezed
+  // pitch-class 0 into a 2-semitone band with no valid octave at all —
+  // clamping ceiling-first-then-low returned a candidate for `pc` a whole
+  // octave below `low`, an out-of-range note; low-first would have quietly
+  // undone by the ceiling pass, same failure in the other direction).
   let pitch = base;
-  while (pitch < low) pitch += 12;
   while (pitch >= ceiling) pitch -= 12;
+  while (pitch < low) pitch += 12;
   return pitch;
 }
 
