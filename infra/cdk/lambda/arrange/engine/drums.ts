@@ -52,31 +52,36 @@ const JAZZ_BAR: DrumHit[] = [
 ];
 
 // Samba percussion, on a 16th-note grid (samba is felt in 16, not 8 — a
-// straight eighth-note shaker reads as generic pop/rock, not samba).
-// Maracas run continuous sixteenths for the shimmer; the agogô bell rides
-// the "Brazilian clave" syncopation cell (3-3-4-2-2 in 16th units),
-// alternating high/low. Kick (surdo) and side-stick (caixa/tamborim) timing
-// — one kick per half-bar squarely on beats 2 and 4, with a side-stick
-// filling the "e"/"and" around it — is drawn from a real samba drum-kit
-// reference chart (a generic teaching pattern, not any specific recording's
-// performance) rather than invented from scratch; see project memory for
-// the source and reasoning.
+// straight eighth-note shaker reads as generic pop/rock, not samba). This
+// mirrors a real samba drum-kit reference chart's own notation shape, not
+// just its rhythm: a single steady top-voice ostinato (tamborim/shaker,
+// here voiced as maracas) with the side-stick REPLACING that note (not
+// stacked on top of it) at accent positions, plus kick (surdo) below —
+// exactly the reference's two-voice, one-notehead-per-position texture.
+// An earlier version also layered a "Brazilian clave" agogô-bell cell on
+// top of the maracas, which is authentic Brazilian-percussion-ensemble
+// texture but not part of this reference chart at all — it turned
+// almost every 16th-note position into a 2-3-note chord (maracas +
+// side-stick + agogô simultaneously), which read as visually cluttered
+// next to the reference's clean single-notehead line. Dropped rather than
+// thinned, since the user asked to match the reference chart directly, not
+// to keep the extra layer at a lower density.
 const SAMBA_BAR: DrumHit[] = [
-  { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
-  { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+  { offset: 0, duration: 0.25, pitches: [GM_MARACAS] },
+  { offset: 0.25, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
+  { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS] },
   { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
   { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_AGOGO_HIGH] },
+  { offset: 1.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
   { offset: 2, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
-  { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
+  { offset: 2.25, duration: 0.25, pitches: [GM_SIDE_STICK] },
+  { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS] },
   { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH, GM_KICK] },
+  { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
   { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS] },
-  { offset: 3.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+  { offset: 3.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
   { offset: 3.75, duration: 0.25, pitches: [GM_MARACAS] },
 ];
 
@@ -181,18 +186,22 @@ const JAZZ_FILLS: DrumHit[][] = [
 ];
 
 // Keeps the maracas 16th-note shimmer going throughout for every variant (so
-// it still reads as samba, not a generic fill dropped on top of it).
+// it still reads as samba, not a generic fill dropped on top of it) — except
+// where a side-stick lands, which replaces the maracas note at that position
+// rather than stacking on it, matching SAMBA_BAR's notation convention (see
+// its comment): the reference chart this was matched against has no agogô
+// bell layer and never stacks more than kick+one hand-percussion note at once.
 const SAMBA_FILLS: DrumHit[][] = [
-  // Back half only trades the agogô/side-stick pattern for a descending
-  // tom run, like a small "chamada" (call) break.
+  // Back half only trades the side-stick pattern for a descending tom run,
+  // like a small "chamada" (call) break.
   [
-    { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_HIGH] },
-    { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 0, duration: 0.25, pitches: [GM_MARACAS] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS, GM_AGOGO_LOW] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS] },
     { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
     { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_AGOGO_HIGH] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS] },
     { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
     { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
@@ -225,17 +234,17 @@ const SAMBA_FILLS: DrumHit[][] = [
   // Syncopated side-stick "chamada" call — more clave-like intensification,
   // toms saved for just the last beat.
   [
-    { offset: 0, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 0, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 0.25, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 0.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_KICK] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_SIDE_STICK, GM_KICK] },
     { offset: 0.75, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 1, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 1, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 1.25, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 1.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 1.75, duration: 0.25, pitches: [GM_MARACAS, GM_KICK] },
-    { offset: 2, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK] },
+    { offset: 2, duration: 0.25, pitches: [GM_SIDE_STICK] },
     { offset: 2.25, duration: 0.25, pitches: [GM_MARACAS] },
-    { offset: 2.5, duration: 0.25, pitches: [GM_MARACAS, GM_SIDE_STICK, GM_KICK] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_SIDE_STICK, GM_KICK] },
     { offset: 2.75, duration: 0.25, pitches: [GM_MARACAS] },
     { offset: 3, duration: 0.25, pitches: [GM_MARACAS, GM_HIGH_TOM] },
     { offset: 3.25, duration: 0.25, pitches: [GM_MARACAS, GM_MID_TOM] },
