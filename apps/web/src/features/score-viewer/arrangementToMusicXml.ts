@@ -83,7 +83,13 @@ interface NoteXmlOptions {
   tab?: Map<string, FretPlacement[]>;
 }
 
-function noteXml(durationBeats: number, note: Note | null, transposeSemitones: number, options: NoteXmlOptions = {}): string {
+function noteXml(
+  durationBeats: number,
+  note: Note | null,
+  transposeSemitones: number,
+  options: NoteXmlOptions = {},
+  beamXml = "",
+): string {
   const { isPercussion = false, voice, stem, partId, tab } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
@@ -105,7 +111,7 @@ function noteXml(durationBeats: number, note: Note | null, transposeSemitones: n
     return pitches
       .map((gmKey, i) => {
         const { positionXml, noteheadXml } = unpitchedXml(gmKey);
-        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}${beamXml}</note>`;
       })
       .join("");
   }
@@ -125,16 +131,89 @@ function noteXml(durationBeats: number, note: Note | null, transposeSemitones: n
         const technicalXml = placement
           ? `<notations><technical><string>${placement.string}</string><fret>${placement.fret}</fret></technical></notations>`
           : "";
-        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${technicalXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}${technicalXml}</note>`;
       })
       .join("");
   }
   return pitches
     .map(
       (pitch, i) =>
-        `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`,
+        `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}</note>`,
     )
     .join("");
+}
+
+const BEAMABLE_EPSILON = 1e-6;
+/** Eighth notes and shorter can be beamed (level 1); this engine's shortest duration is a 16th (level 2), so no level 3+ is ever needed. */
+function isBeamable(durationBeats: number): boolean {
+  return durationBeats <= 0.5 + BEAMABLE_EPSILON;
+}
+function isSixteenth(durationBeats: number): boolean {
+  return Math.abs(durationBeats - 0.25) < BEAMABLE_EPSILON;
+}
+
+interface Chunk {
+  note: Note | null;
+  duration: number;
+  /** Position within the measure, in beats — used to group chunks by beat for beaming (MusicXML has no auto-beaming; every beam has to be spelled out explicitly, per beat, or OSMD renders each note with its own flag instead of a connected beam). */
+  startInMeasure: number;
+}
+
+/**
+ * Assigns MusicXML <beam> begin/continue/end tags to a run of chunks that
+ * share the same integer beat (so a beam never crosses a beat boundary —
+ * standard engraving practice, and what "group by 4" for a 16th-note beat
+ * means concretely). A rest or a note longer than an eighth breaks a run;
+ * a lone beamable note with no beamable neighbor in the same beat doesn't
+ * get a beam (MusicXML requires at least 2 notes to form one). Level 2
+ * (the second, inner beam connecting only 16th notes) is layered on top of
+ * the level-1 run wherever 2+ consecutive chunks within it are 16ths.
+ */
+function computeBeatBeams(group: Chunk[]): string[] {
+  const beams = new Array<string>(group.length).fill("");
+  let start = 0;
+  while (start < group.length) {
+    if (!group[start].note || !isBeamable(group[start].duration)) {
+      start++;
+      continue;
+    }
+    let end = start;
+    while (end < group.length && group[end].note && isBeamable(group[end].duration)) end++;
+    if (end - start >= 2) {
+      for (let k = start; k < end; k++) {
+        const level1 = k === start ? "begin" : k === end - 1 ? "end" : "continue";
+        let xml = `<beam number="1">${level1}</beam>`;
+        if (isSixteenth(group[k].duration)) {
+          let s2 = k;
+          while (s2 > start && isSixteenth(group[s2 - 1].duration)) s2--;
+          let e2 = k;
+          while (e2 < end - 1 && isSixteenth(group[e2 + 1].duration)) e2++;
+          if (e2 > s2) {
+            const level2 = k === s2 ? "begin" : k === e2 ? "end" : "continue";
+            xml += `<beam number="2">${level2}</beam>`;
+          }
+        }
+        beams[k] = xml;
+      }
+    }
+    start = end;
+  }
+  return beams;
+}
+
+/** Groups a measure's chunks by integer beat (assumes an integer beatsPerBar, true for every meter this engine generates) and beams each beat's group independently, so beams never cross a beat. */
+function computeMeasureBeams(chunks: Chunk[]): string[] {
+  const beams = new Array<string>(chunks.length).fill("");
+  let i = 0;
+  while (i < chunks.length) {
+    const beatIndex = Math.floor(chunks[i].startInMeasure + BEAMABLE_EPSILON);
+    let j = i;
+    while (j < chunks.length && Math.floor(chunks[j].startInMeasure + BEAMABLE_EPSILON) === beatIndex) j++;
+    const groupBeams = computeBeatBeams(chunks.slice(i, j));
+    for (let k = 0; k < groupBeams.length; k++) beams[i + k] = groupBeams[k];
+    i = j;
+  }
+  return beams;
 }
 
 const KIND_XML: Record<ChordQuality, string> = {
@@ -162,10 +241,10 @@ function transposeXml(transposeSemitones: number): string {
   return `<transpose><chromatic>${-transposeSemitones}</chromatic></transpose>`;
 }
 
-function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteXmlOptions = {}): string[][] {
+function melodyToChunks(melody: Melody): Chunk[][] {
   const beatsPerBar = melody.beatsPerBar;
   const sorted = [...melody.notes].sort((a, b) => a.start - b.start);
-  const measures: string[][] = [[]];
+  const measures: Chunk[][] = [[]];
   let measureBeats = 0;
 
   function pushChunk(note: Note | null, durationBeats: number) {
@@ -173,7 +252,7 @@ function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteX
     while (remaining > 0) {
       const roomLeft = beatsPerBar - measureBeats;
       const chunk = Math.min(remaining, roomLeft);
-      measures[measures.length - 1].push(noteXml(chunk, note, transposeSemitones, options));
+      measures[measures.length - 1].push({ note, duration: chunk, startInMeasure: measureBeats });
       measureBeats += chunk;
       remaining -= chunk;
       if (measureBeats >= beatsPerBar) {
@@ -198,9 +277,16 @@ function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteX
     measures.pop();
   }
   if (measures.length === 0) {
-    measures.push([noteXml(beatsPerBar, null, transposeSemitones, options)]);
+    measures.push([{ note: null, duration: beatsPerBar, startInMeasure: 0 }]);
   }
   return measures;
+}
+
+function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteXmlOptions = {}): string[][] {
+  return melodyToChunks(melody).map((chunks) => {
+    const beams = computeMeasureBeams(chunks);
+    return chunks.map((chunk, i) => noteXml(chunk.duration, chunk.note, transposeSemitones, options, beams[i]));
+  });
 }
 
 function partMeasuresXml(
