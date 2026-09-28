@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
-import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
+import { ScoreViewer, arrangementToMusicXml, melodyToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
 import { SongPicker, generateRandomMelody } from "@/features/song-picker";
-import type { Note } from "@/features/piano-roll";
+import type { Melody, Note } from "@/features/piano-roll";
 import { useAppStore } from "@/store/appStore";
 
 type Step = "pick" | "options" | "result";
@@ -34,6 +34,33 @@ function updateNote(arrangement: Arrangement, partId: string, noteId: string, ch
   };
 }
 
+/** melodyToMusicXml always writes a single part with id "P1" — this fake single-part
+ * Arrangement wraps a raw pre-arrangement Melody (song pick / random theme) in that same
+ * shape so ScoreViewer's existing click/drag-edit machinery (which resolves a clicked note
+ * via an Arrangement's parts) works on it too, without needing a real /arrange round-trip.
+ * `partId` defaults to that same "P1" for the edit-wiring use above, but playback needs a
+ * REAL GM-mapped DriftScore instrument id instead (sampledInstruments.ts's GM_INSTRUMENT has
+ * no entry for "P1", so audio would silently play nothing) — pass "lead" (a generic melody
+ * voice, mapped to violin) for that case instead. */
+const MELODY_PREVIEW_PART_ID = "P1";
+
+function melodyPreviewArrangement(melody: Melody, partId: string = MELODY_PREVIEW_PART_ID): Arrangement {
+  return {
+    genre: "",
+    distortion: 0,
+    ensembleId: "",
+    beatsPerBar: melody.beatsPerBar,
+    chords: [],
+    melodyPartId: partId,
+    sections: [],
+    parts: [{ id: partId, name: "Melody", clef: "treble", transposeSemitones: 0, polyphonic: false, melody }],
+  };
+}
+
+function updateMelodyNote(melody: Melody, noteId: string, changes: Partial<Note>): Melody {
+  return { ...melody, notes: melody.notes.map((n) => (n.id === noteId ? { ...n, ...changes } : n)) };
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("pick");
   // Song selection lives on its own page (/songs) now, not inline here —
@@ -43,7 +70,7 @@ export default function Home() {
   const setSelectedSong = useAppStore((s) => s.setSelectedSong);
   const [options, setOptions] = useState<ArrangeOptions>({
     genre: "jazz",
-    distortion: 30,
+    distortion: 0,
     ensembleId: "pianoTrio",
     customInstrumentIds: [],
     keyRoot: null,
@@ -52,6 +79,12 @@ export default function Home() {
   const [arrangement, setArrangement] = useState<Arrangement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [isPlaying, setIsPlaying] = useState(false);
+  // Plays just the selected/random melody, before an arrangement even
+  // exists — independent of `isPlaying` (the generated arrangement's own
+  // play button, in the result section below), since a user should be able
+  // to preview the raw tune right where they pick/generate it.
+  const [isPlayingMelody, setIsPlayingMelody] = useState(false);
+  const [isLoadingMelodyAudio, setIsLoadingMelodyAudio] = useState(false);
   // True while this arrangement's sampled instruments (see
   // features/playback/sampledInstruments.ts) are being fetched — a
   // sample-based instrument genuinely has to download audio the first time
@@ -201,6 +234,7 @@ export default function Home() {
       return;
     }
     setIsPlaying(true);
+    setIsPlayingMelody(false); // playArrangement() below stops any other playback anyway; keep the UI in sync
     // Solos the currently selected part tab (see ScoreViewer's part buttons)
     // — matches what's on screen, so "スコア全体" plays everything and
     // picking e.g. "Alto Saxophone 1" plays only that part.
@@ -213,6 +247,21 @@ export default function Home() {
     );
     await playArrangement(arrangement, BPM, selectedPartId, setIsLoadingAudio, mutedPartIds);
     window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
+  }
+
+  async function handleToggleMelodyPlay() {
+    if (!selectedSong) return;
+    if (isPlayingMelody) {
+      stopPlayback();
+      setIsPlayingMelody(false);
+      return;
+    }
+    setIsPlayingMelody(true);
+    setIsPlaying(false); // playArrangement() below stops any other playback anyway; keep the UI in sync
+    const melody = selectedSong.melody;
+    const lastEnd = Math.max(0, ...melody.notes.map((n) => n.start + n.duration));
+    await playArrangement(melodyPreviewArrangement(melody, "lead"), BPM, undefined, setIsLoadingMelodyAudio);
+    window.setTimeout(() => setIsPlayingMelody(false), (lastEnd * 60 * 1000) / BPM + 600);
   }
 
   return (
@@ -236,20 +285,51 @@ export default function Home() {
         <section className="w-full max-w-3xl flex flex-col gap-3">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">1. 曲を選ぶ</h2>
           <SongPicker compact selectedId={selectedSong?.id ?? null} onSelect={setSelectedSong} />
-          <button
-            type="button"
-            onClick={() => setSelectedSong({
-              id: `random-${Date.now()}`,
-              title: "ランダムメロディ",
-              attribution: "自動生成(即興・8小節)",
-              melody: generateRandomMelody(),
-            })}
-            className="self-start rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            🎲 適当に8小節作る
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {([8, 16] as const).map((barCount) => (
+              <button
+                key={barCount}
+                type="button"
+                onClick={() => setSelectedSong({
+                  id: `random-${Date.now()}`,
+                  title: "ランダムテーマ",
+                  attribution: `自動生成(即興・${barCount}小節)`,
+                  melody: generateRandomMelody(barCount),
+                })}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                🎲 {barCount}小節のランダムテーマを生成する
+              </button>
+            ))}
+          </div>
           {selectedSong && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">選択中: {selectedSong.title}</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleMelodyPlay}
+                  disabled={isLoadingMelodyAudio}
+                  className="rounded-full bg-blue-400 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoadingMelodyAudio ? "音源読み込み中..." : isPlayingMelody ? "■ 停止" : "▶ メロディを再生"}
+                </button>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  選択中: {selectedSong.title}(ドラッグで音高、ダブルクリックで長さを編集できます)
+                </p>
+              </div>
+              <ScoreViewer
+                musicXml={melodyToMusicXml(selectedSong.melody, selectedSong.title)}
+                title={selectedSong.title}
+                compact
+                arrangement={melodyPreviewArrangement(selectedSong.melody)}
+                onNoteEdit={(_partId, note, newPitch) => {
+                  setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { pitch: newPitch }) });
+                }}
+                onNoteDurationEdit={(_partId, note, newDuration) => {
+                  setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { duration: newDuration }) });
+                }}
+              />
+            </div>
           )}
         </section>
 

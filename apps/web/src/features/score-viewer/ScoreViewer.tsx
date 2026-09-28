@@ -128,6 +128,7 @@ export function ScoreViewer({
   onNoteClick,
   onNoteEdit,
   onNoteDurationEdit,
+  compact,
 }: {
   musicXml: string;
   title?: string;
@@ -139,6 +140,11 @@ export function ScoreViewer({
   /** Called on double-click, cycling the note's duration (see nextDuration()). */
   onNoteDurationEdit?: (partId: string, note: Note, newDuration: number) => void;
   onCursorReady?: (cursor: ScoreCursor | null) => void;
+  /** Skips A4 pagination and renders as a single system sized to its own content
+   * (OSMD's "endless" mode) instead of a fixed full-page height — for a short
+   * preview (e.g. a raw melody before arranging) where a whole blank A4 page
+   * below a single line of notation would be mostly empty space. */
+  compact?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -176,8 +182,21 @@ export function ScoreViewer({
           // strip) — "フル版" score look, pages laid out in a single
           // horizontally-scrolling row (see the container below), like
           // spreading printed pages out side by side on a desk.
-          pageFormat: "A4_P",
-          pageBackgroundColor: "#FFFFFF",
+          // Skipped in `compact` mode (leaving OSMD's default, undefined
+          // "Endless" format): OSMD always derives the actual page WIDTH
+          // from the container's own measured offsetWidth regardless of
+          // what `pageFormat` says (a custom "<w>x<h>" format's width field
+          // only feeds an aspect-ratio calculation, never the real layout
+          // width — confirmed by reading OSMD's own source), so passing a
+          // width here can't achieve anything a plain container width
+          // already doesn't. What a *defined* pageFormat DOES change is the
+          // page HEIGHT — OSMD sets it to containerWidth/aspectRatio, a
+          // real fixed page height regardless of content — which is exactly
+          // what produced a large blank area below a short preview. Leaving
+          // pageFormat undefined makes OSMD use its "endless" height
+          // instead (rules.PageHeight = 100001, effectively unbounded), so
+          // the rendered SVG's actual height tracks the content it drew.
+          ...(compact ? {} : { pageFormat: "A4_P", pageBackgroundColor: "#FFFFFF" }),
           // OSMD ignores a MusicXML <print new-system="yes"/> / <print
           // new-page="yes"/> unless explicitly told to honor them — both
           // default to false. Without this, arrangementToMusicXml's computed
@@ -357,8 +376,12 @@ export function ScoreViewer({
             // memory for the repro). Left-aligned instead, which also
             // matches how a score is actually read: start at measure 1,
             // scroll right to continue.
-            className="grid gap-4"
-            style={{ zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
+            // In compact mode there's only ever one (endless-mode) "page",
+            // so the multi-page 2-column grid + zoomed-out scale (tuned for
+            // fitting several A4 pages on screen) would just add pointless
+            // whitespace around a single short line of notation.
+            className={compact ? undefined : "grid gap-4"}
+            style={compact ? undefined : { zoom: 0.5, gridTemplateColumns: "repeat(2, max-content)" }}
           />
         </>
       )}
