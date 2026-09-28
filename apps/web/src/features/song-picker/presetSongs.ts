@@ -470,4 +470,193 @@ export const PRESET_SONGS: PresetSong[] = [
       [0, 1], [2, 1], [0, 4],
     ]), 2),
   },
+  // Ragtime — jazz's own direct precursor, requested as a substitute for
+  // still-copyrighted jazz standards (枯葉/Autumn Leaves: Kosma, d.1969;
+  // Sing Sing Sing: Prima, d.1978 — neither is past Japan's death+70-year
+  // term yet, unlike every composer already in this file). Scott Joplin
+  // (1868-1917) is well past that term, so these are genuinely safe to
+  // include. Placeholder degree sequences, like every other entry here —
+  // NOT verified transcriptions (see feedback_melody_verification memory) —
+  // but use syncopated 0.75/0.25 splits rather than plain on-the-beat
+  // durations, at least gesturing at ragtime's characteristic syncopation.
+  {
+    id: "the-entertainer",
+    title: "The Entertainer",
+    attribution: "作曲:Scott Joplin(1868-1917・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [4, 0.75], [2, 0.25], [4, 1], [7, 1], [4, 1],
+      [2, 0.75], [0, 0.25], [2, 1], [4, 1], [2, 1],
+    ]), 2),
+  },
+  {
+    id: "maple-leaf-rag",
+    title: "Maple Leaf Rag",
+    attribution: "作曲:Scott Joplin(1868-1917・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.5], [2, 0.5], [4, 0.5], [7, 0.5], [4, 1], [2, 1],
+      [0, 0.5], [2, 0.5], [4, 1], [2, 1], [0, 2],
+    ]), 2),
+  },
+  // Spirituals/gospel hymns and old-world folk tunes — genuinely anonymous/
+  // traditional (no individual copyright holder at all), unlike a specific
+  // jazz standard's named composer. Requested alongside Autumn
+  // Leaves/Sing Sing Sing/etc.; those specific standards are still
+  // copyrighted (see this section's own leading comment above and the
+  // rejected list recorded in project memory) — these are the genuinely-safe
+  // substitutes from the same request. Placeholder degree sequences, not
+  // verified transcriptions, like every other entry in this file.
+  {
+    id: "when-the-saints-go-marching-in",
+    title: "When the Saints Go Marching In",
+    attribution: "伝承曲(黒人霊歌)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 2], [0, 1], [2, 1], [4, 2],
+      [0, 1], [2, 1], [4, 1], [7, 1], [4, 4],
+    ]), 2),
+  },
+  {
+    id: "down-by-the-riverside",
+    title: "Down by the Riverside",
+    attribution: "伝承曲(黒人霊歌)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 1], [5, 1], [4, 2], [2, 2],
+      [0, 1], [2, 1], [0, 4],
+    ]), 2),
+  },
+  {
+    id: "wade-in-the-water",
+    title: "Wade in the Water",
+    attribution: "伝承曲(黒人霊歌)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [4, 2], [2, 1], [0, 1], [4, 2], [5, 1], [4, 1],
+      [2, 2], [0, 2],
+    ]), 2),
+  },
+  {
+    id: "swing-low-sweet-chariot",
+    title: "Swing Low, Sweet Chariot",
+    attribution: "伝承曲(黒人霊歌・Wallace Willis作と伝わる)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [4, 1], [7, 2], [4, 1], [2, 1], [0, 2],
+      [0, 1], [4, 1], [7, 1], [9, 1], [7, 4],
+    ]), 2),
+  },
+  {
+    id: "kum-ba-yah",
+    title: "Kum Ba Yah",
+    attribution: "伝承曲(フォーク・黒人霊歌)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [2, 1], [4, 2], [2, 1], [0, 1], [4, 2],
+      [0, 4],
+    ]), 2),
+  },
+  {
+    id: "dark-eyes",
+    title: "Dark Eyes(黒い瞳)",
+    attribution: "伝承曲(ロシア・ロマンス、19世紀)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [4, 1], [3, 1], [2, 2], [1, 1], [0, 1], [7, 2],
+      [4, 1], [3, 1], [2, 4],
+    ], NATURAL_MINOR_SCALE), 2),
+  },
+  {
+    id: "la-bamba",
+    title: "La Bamba",
+    attribution: "伝承曲(メキシコ・ベラクルス民謡)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.5], [0, 0.5], [3, 0.5], [3, 0.5], [4, 0.5], [4, 0.5], [3, 1],
+      [2, 1], [0, 1], [3, 1], [4, 1],
+    ]), 2),
+  },
+  // Named-composer songs — included only where the composer died long enough
+  // ago (8+ years past Japan's death+70 term as of 2026) that an off-by-a-
+  // year memory slip in the death date wouldn't flip the copyright status;
+  // several others from the same request (Mack the Knife/Weill d.1950→2021,
+  // Softly As in a Morning Sunrise/Romberg d.1951→2022, As Time Goes By/
+  // Hupfeld d.1951→2022) were deliberately left out for exactly that reason
+  // — their margin is only 4-6 years, too tight to be confident from memory
+  // alone. Attribution notes the MUSIC composer specifically (not any
+  // separate lyricist, who may still be under copyright) since this app
+  // only ever represents an instrumental melody.
+  {
+    id: "summertime",
+    title: "Summertime",
+    attribution: "作曲:George Gershwin(1898-1937・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [2, 1], [0, 0.5], [2, 0.5], [4, 2], [2, 1], [0, 1],
+      [2, 1], [4, 1], [2, 2],
+    ], NATURAL_MINOR_SCALE), 2),
+  },
+  {
+    id: "i-got-rhythm",
+    title: "I Got Rhythm",
+    attribution: "作曲:George Gershwin(1898-1937・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.75], [2, 0.25], [4, 1], [7, 2], [4, 0.75], [2, 0.25],
+      [0, 1], [2, 1], [0, 2],
+    ]), 2),
+  },
+  {
+    id: "tico-tico-no-fuba",
+    title: "Tico-Tico no Fubá",
+    attribution: "作曲:Zequinha de Abreu(1880-1935・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.5], [1, 0.5], [2, 0.5], [3, 0.5], [4, 1], [2, 1],
+      [0, 0.5], [1, 0.5], [2, 1], [0, 1],
+    ], NATURAL_MINOR_SCALE), 2),
+  },
+  {
+    id: "honeysuckle-rose",
+    title: "Honeysuckle Rose",
+    attribution: "作曲:Fats Waller(1904-1943・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.75], [0, 0.25], [2, 1], [4, 1], [2, 0.75], [0, 0.25],
+      [2, 1], [0, 2],
+    ]), 2),
+  },
+  {
+    id: "smoke-gets-in-your-eyes",
+    title: "Smoke Gets in Your Eyes",
+    attribution: "作曲:Jerome Kern(1885-1945・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [4, 2], [5, 1], [4, 1], [2, 2], [0, 2],
+      [2, 1], [4, 1], [2, 4],
+    ]), 2),
+  },
+  {
+    id: "someday-my-prince-will-come",
+    title: "Someday My Prince Will Come",
+    attribution: "作曲:Frank Churchill(1901-1942・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 2], [4, 1], [7, 1], [4, 2], [2, 1], [0, 1],
+      [2, 2], [0, 2],
+    ]), 2),
+  },
+  {
+    id: "moonlight-serenade",
+    title: "Moonlight Serenade",
+    attribution: "作曲:Glenn Miller(1904-1944・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [4, 2], [2, 1], [0, 1], [4, 2], [2, 2],
+      [0, 1], [2, 1], [4, 4],
+    ]), 2),
+  },
+  {
+    id: "tea-for-two",
+    title: "Tea for Two",
+    attribution: "作曲:Vincent Youmans(1898-1946・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 0.5], [2, 0.5], [4, 1], [2, 1], [0, 1],
+      [2, 0.5], [4, 0.5], [5, 1], [4, 1], [2, 1],
+    ]), 2),
+  },
+  {
+    id: "la-cumparsita",
+    title: "La Cumparsita",
+    attribution: "作曲:Gerardo Matos Rodríguez(1897-1948・パブリックドメイン)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [1, 1], [2, 2], [1, 1], [0, 1], [7, 2],
+      [5, 1], [4, 1], [2, 4],
+    ], NATURAL_MINOR_SCALE), 2),
+  },
 ];
