@@ -304,31 +304,31 @@ export default function Home() {
           </div>
           {selectedSong && (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                選択中: {selectedSong.title}(ドラッグで音高、ダブルクリックで長さを編集できます)
+              </p>
+              <div className="relative">
                 <button
                   type="button"
                   onClick={handleToggleMelodyPlay}
                   disabled={isLoadingMelodyAudio}
-                  className="rounded-full bg-blue-400 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="absolute left-2 top-2 z-10 rounded-full bg-blue-400 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isLoadingMelodyAudio ? "音源読み込み中..." : isPlayingMelody ? "■ 停止" : "▶ メロディを再生"}
+                  {isLoadingMelodyAudio ? "音源読み込み中..." : isPlayingMelody ? "■ 停止" : "▶ 再生"}
                 </button>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  選択中: {selectedSong.title}(ドラッグで音高、ダブルクリックで長さを編集できます)
-                </p>
+                <ScoreViewer
+                  musicXml={melodyToMusicXml(selectedSong.melody, selectedSong.title)}
+                  title={selectedSong.title}
+                  compact
+                  arrangement={melodyPreviewArrangement(selectedSong.melody)}
+                  onNoteEdit={(_partId, note, newPitch) => {
+                    setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { pitch: newPitch }) });
+                  }}
+                  onNoteDurationEdit={(_partId, note, newDuration) => {
+                    setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { duration: newDuration }) });
+                  }}
+                />
               </div>
-              <ScoreViewer
-                musicXml={melodyToMusicXml(selectedSong.melody, selectedSong.title)}
-                title={selectedSong.title}
-                compact
-                arrangement={melodyPreviewArrangement(selectedSong.melody)}
-                onNoteEdit={(_partId, note, newPitch) => {
-                  setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { pitch: newPitch }) });
-                }}
-                onNoteDurationEdit={(_partId, note, newDuration) => {
-                  setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { duration: newDuration }) });
-                }}
-              />
             </div>
           )}
         </section>
