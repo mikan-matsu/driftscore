@@ -45,20 +45,40 @@ export const GM_MARACAS = 70;
  * Two earlier passes both got hi-hat wrong in different directions: one
  * mistook a "第5間" instruction for a ledger space above the staff, the
  * next then overcorrected to 第4間 (a real in-staff position, E5) — this
- * reference chart resolves the ambiguity conclusively. Kick/tom/maracas/
- * agogô positions are still the generic-convention guess from before this
- * correction — the same reference chart has real answers for these too
- * (kick/bass sits on a ledger line below the staff, not the space just
- * above the bottom line this mapping currently uses) but re-deriving the
- * complete kit from it is follow-up work, not done in this pass.
+ * reference chart resolves the ambiguity conclusively.
+ *
+ * Re-measured (2026-09-28, later session) against the same reference
+ * chart's tom pair (top staff, labeled 「ハイタム high tom」/「ローダム low
+ * tom」) via pixel-level analysis (staff line spacing is only ~4.5px in
+ * this low-res source, too fine to trust by eye alone): high tom sits in
+ * the space above the 2nd-from-top line (E5), low tom sits ON that 2nd
+ * line (D5) — both one full staff step higher than this mapping's previous
+ * guess (HIGH_TOM was D5, MID_TOM was C5). This app's 3-tom system maps
+ * the chart's "low tom" to MID_TOM (there's a separate, lower "floor tom"
+ * entry in the same chart — see DRUM_NAME's "Floor Tom" — which is this
+ * app's LOW_TOM). Kick's own measured position (F4, the space just above
+ * the bottom line) came back matching the existing value exactly, so it's
+ * unchanged and now confirmed rather than just assumed.
+ *
+ * Left unresolved: LOW_TOM/FloorTom's exact position measured ambiguously
+ * between the middle line (B4) and the space below it (A4) — peak pixel
+ * darkness was split almost evenly between both candidates at this
+ * resolution, and forcing a pick risked encoding noise as fact (note B4
+ * would also collide with SNARE/SIDE_STICK's position, which itself came
+ * from a separate, more authoritative confirmation, not this chart — see
+ * above). Only clear enough to say it's wrong, not what it should be
+ * instead, so its previous guess (G4) is left in place pending either a
+ * higher-resolution reference image or a direct answer from the user.
+ * MARACAS/AGOGO aren't in this chart at all (it's a standard kit legend,
+ * no Latin percussion) — no reference data exists for them yet.
  */
 export const DRUM_DISPLAY: Record<number, { step: string; octave: number; notehead?: string }> = {
   [GM_KICK]: { step: "F", octave: 4 },
   [GM_LOW_TOM]: { step: "G", octave: 4 },
   [GM_SNARE]: { step: "A", octave: 4 },
   [GM_SIDE_STICK]: { step: "A", octave: 4, notehead: "x" },
-  [GM_MID_TOM]: { step: "C", octave: 5 },
-  [GM_HIGH_TOM]: { step: "D", octave: 5 },
+  [GM_MID_TOM]: { step: "D", octave: 5 },
+  [GM_HIGH_TOM]: { step: "E", octave: 5 },
   [GM_AGOGO_LOW]: { step: "F", octave: 5 },
   [GM_AGOGO_HIGH]: { step: "A", octave: 5 },
   [GM_MARACAS]: { step: "B", octave: 5, notehead: "x" },
