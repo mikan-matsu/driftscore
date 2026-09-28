@@ -17,9 +17,15 @@ function matches(song: PresetSong, query: string): boolean {
 export function SongPicker({
   selectedId,
   onSelect,
+  /** Constrains the result list to a small scrollable area instead of
+   * growing to fit every match — for embedding inline on a page that isn't
+   * dedicated to song browsing (the main page's quick-pick widget), as
+   * opposed to the full /songs page where the list can grow freely. */
+  compact = false,
 }: {
   selectedId: string | null;
   onSelect: (song: PresetSong) => void;
+  compact?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const filtered = PRESET_SONGS.filter((song) => matches(song, query));
@@ -33,7 +39,11 @@ export function SongPicker({
         placeholder="曲名で検索(例: 故郷、furusato)"
         className="w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
-      <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div
+        className={`w-full rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${
+          compact ? "max-h-64 overflow-y-auto" : "overflow-hidden"
+        }`}
+      >
         {filtered.length === 0 ? (
           <p className="px-4 py-3 text-sm text-slate-400 dark:text-slate-500">該当する曲が見つかりませんでした。</p>
         ) : (

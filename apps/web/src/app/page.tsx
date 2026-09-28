@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
+import { SongPicker, generateRandomMelody } from "@/features/song-picker";
 import type { Note } from "@/features/piano-roll";
 import { useAppStore } from "@/store/appStore";
 
@@ -39,6 +40,7 @@ export default function Home() {
   // the shared store is what lets that page's pick survive the navigation
   // back to "/".
   const selectedSong = useAppStore((s) => s.selectedSong);
+  const setSelectedSong = useAppStore((s) => s.setSelectedSong);
   const [options, setOptions] = useState<ArrangeOptions>({
     genre: "jazz",
     distortion: 30,
@@ -215,6 +217,12 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 min-h-screen bg-slate-50 font-sans dark:bg-slate-950">
+      <Link
+        href="/songs"
+        className="fixed bottom-6 right-6 z-10 rounded-full bg-slate-800 px-5 py-3 text-sm font-medium text-white shadow-lg transition-colors hover:bg-slate-700 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+      >
+        参考曲一覧 →
+      </Link>
       <main className="flex flex-1 w-full flex-col items-center gap-8 py-12 px-4 sm:px-8">
         <div className="w-full max-w-3xl flex flex-col gap-2">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
@@ -227,21 +235,22 @@ export default function Home() {
 
         <section className="w-full max-w-3xl flex flex-col gap-3">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">1. 曲を選ぶ</h2>
-          <Link
-            href="/songs"
-            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          <SongPicker compact selectedId={selectedSong?.id ?? null} onSelect={setSelectedSong} />
+          <button
+            type="button"
+            onClick={() => setSelectedSong({
+              id: `random-${Date.now()}`,
+              title: "ランダムメロディ",
+              attribution: "自動生成(即興・8小節)",
+              melody: generateRandomMelody(),
+            })}
+            className="self-start rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
           >
-            {selectedSong ? (
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">
-                {selectedSong.title}
-              </span>
-            ) : (
-              <span className="text-slate-400 dark:text-slate-500">曲を選んでください</span>
-            )}
-            <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
-              {selectedSong ? "変更する" : "選ぶ"} →
-            </span>
-          </Link>
+            🎲 適当に8小節作る
+          </button>
+          {selectedSong && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">選択中: {selectedSong.title}</p>
+          )}
         </section>
 
         {selectedSong && (
