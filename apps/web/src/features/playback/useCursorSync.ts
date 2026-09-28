@@ -40,13 +40,22 @@ function pinCursorElementSize(el: HTMLImageElement) {
   if (attrHeight) el.style.height = `${attrHeight}px`;
 }
 
-interface LineSegment {
+interface CursorPoint {
+  t: number;
+  x: number;
+  y: number;
+}
+
+interface Line {
   tStart: number;
   tEnd: number;
-  xStart: number;
-  xEnd: number;
+  /** Every distinct note-event position recorded within this line (not just its
+   * start/end) — see buildLines()'s comment for why interpolating between just
+   * two line-wide endpoints was replaced with piecewise interpolation across
+   * these. */
+  points: CursorPoint[];
   top: number;
-  /** id of the page container (e.g. "osmdCanvasPage2") the cursor element must be a child of for xStart/xEnd/top to mean anything — OSMD reparents the cursor <img> to each page's own container as it crosses page boundaries (paged/A4 mode renders one <svg> + container per page), and offsetLeft/offsetTop are relative to that container. Manually setting style.left/top during our own interpolation must reparent the element to match, or the coordinates are read against the wrong page and the cursor renders in the wrong place. */
+  /** id of the page container (e.g. "osmdCanvasPage2") the cursor element must be a child of for these points' x/y to mean anything — OSMD reparents the cursor <img> to each page's own container as it crosses page boundaries (paged/A4 mode renders one <svg> + container per page), and offsetLeft/offsetTop are relative to that container. Manually setting style.left/top during our own interpolation must reparent the element to match, or the coordinates are read against the wrong page and the cursor renders in the wrong place. */
   containerId: string | null;
 }
 
@@ -66,8 +75,29 @@ interface LineSegment {
 // glitch to go unnoticed next to a short piece going almost fully frozen.
 const SENTINEL_TIMESTAMP_JUMP = 1000; // real pieces are nowhere near 1000 whole notes long
 
-/** Silently walks the whole score once to record each line's time/x span (and which page container it belongs to), then resets the cursor to the start. */
-function buildLineSegments(cursor: ScoreCursor): LineSegment[] {
+/**
+ * Silently walks the whole score once to record each line's constituent
+ * note-event points (time/x/y and which page container each belongs to),
+ * then resets the cursor to the start.
+ *
+ * Earlier versions collapsed each line down to just its first/last point and
+ * interpolated x linearly between those two — one constant velocity for the
+ * entire line. That's a coarser approximation than it looks: real engraving
+ * spaces notes by duration but not strictly proportionally (a half note
+ * takes noticeably less than 4x an eighth note's width, extra room gets
+ * added around accidentals/chord symbols, etc.), so a line's actual notehead
+ * positions are NOT evenly spaced in time the way constant-velocity
+ * interpolation assumes. In practice this meant the cursor would visibly
+ * race ahead during long notes (which occupy more x than their time-share
+ * of the line) and fall behind during a cluster of short notes (which are
+ * engraved more compactly than their time-share) — exactly the "the blue
+ * line doesn't line up with what's actually playing" symptom. Keeping every
+ * point (not just the line's first/last) and interpolating piecewise
+ * between consecutive points fixes this while keeping the same smooth,
+ * continuous glide (each individual inter-note segment is still a simple
+ * linear interpolation, just over a much shorter, evenly-proportional span).
+ */
+function buildLines(cursor: ScoreCursor): Line[] {
   const el = getCursorElement(cursor);
   if (!el) return [];
 
@@ -92,7 +122,7 @@ function buildLineSegments(cursor: ScoreCursor): LineSegment[] {
   }
   cursor.reset();
 
-  const segments: LineSegment[] = [];
+  const lines: Line[] = [];
   let runStart = 0;
   for (let i = 1; i <= points.length; i++) {
     const brokeLine =
@@ -100,13 +130,20 @@ function buildLineSegments(cursor: ScoreCursor): LineSegment[] {
       points[i].y !== points[runStart].y ||
       points[i].containerId !== points[runStart].containerId;
     if (brokeLine) {
-      const first = points[runStart];
-      const last = points[i - 1];
-      segments.push({ tStart: first.t, tEnd: last.t, xStart: first.x, xEnd: last.x, top: first.y, containerId: first.containerId });
+      const runPoints = points.slice(runStart, i);
+      const first = runPoints[0];
+      const last = runPoints[runPoints.length - 1];
+      lines.push({
+        tStart: first.t,
+        tEnd: last.t,
+        points: runPoints.map((p) => ({ t: p.t, x: p.x, y: p.y })),
+        top: first.y,
+        containerId: first.containerId,
+      });
       runStart = i;
     }
   }
-  return segments;
+  return lines;
 }
 
 export function useCursorSync(cursor: ScoreCursor | null, isPlaying: boolean, bpm: number) {
@@ -125,10 +162,15 @@ export function useCursorSync(cursor: ScoreCursor | null, isPlaying: boolean, bp
     // 0 before playback actually starts, so this doesn't cause a visible jump.
     cursor.show();
     pinCursorElementSize(el);
-    const segments = buildLineSegments(cursor);
+    const lines = buildLines(cursor);
     el.style.transition = "none";
 
-    let segmentIndex = 0;
+    let lineIndex = 0;
+    // Index into lines[lineIndex].points — tracked separately from lineIndex
+    // and reset to 0 whenever the line changes, so each frame's search for
+    // the bracketing pair of points starts from roughly the right place
+    // instead of scanning the whole line from the start every time.
+    let pointIndex = 0;
 
     async function loop() {
       if (cancelled) return;
@@ -140,24 +182,31 @@ export function useCursorSync(cursor: ScoreCursor | null, isPlaying: boolean, bp
         const elapsedBeats = Tone.getTransport().seconds * (bpm / 60);
         const elapsedWholeNotes = elapsedBeats / 4;
 
-        while (segmentIndex < segments.length - 1 && elapsedWholeNotes >= segments[segmentIndex].tEnd) {
-          segmentIndex += 1;
+        while (lineIndex < lines.length - 1 && elapsedWholeNotes >= lines[lineIndex].tEnd) {
+          lineIndex += 1;
+          pointIndex = 0;
         }
-        const seg = segments[segmentIndex];
-        if (seg) {
-          // Reparent to the segment's own page container before positioning
-          // — see the LineSegment.containerId comment above. Skipped when
-          // already correct (the common case, since most consecutive
-          // segments share a page) to avoid needless DOM churn every frame.
-          if (seg.containerId && el.parentElement?.id !== seg.containerId) {
-            const target = document.getElementById(seg.containerId);
+        const line = lines[lineIndex];
+        if (line) {
+          // Reparent to the line's own page container before positioning —
+          // see the Line.containerId comment above. Skipped when already
+          // correct (the common case, since most consecutive lines share a
+          // page) to avoid needless DOM churn every frame.
+          if (line.containerId && el.parentElement?.id !== line.containerId) {
+            const target = document.getElementById(line.containerId);
             if (target) target.appendChild(el);
           }
-          const span = seg.tEnd - seg.tStart;
-          const fraction = span > 0 ? Math.min(1, Math.max(0, (elapsedWholeNotes - seg.tStart) / span)) : 1;
-          const x = seg.xStart + (seg.xEnd - seg.xStart) * fraction;
+          const points = line.points;
+          while (pointIndex < points.length - 2 && elapsedWholeNotes >= points[pointIndex + 1].t) {
+            pointIndex += 1;
+          }
+          const p0 = points[pointIndex];
+          const p1 = points[Math.min(pointIndex + 1, points.length - 1)];
+          const span = p1.t - p0.t;
+          const fraction = span > 0 ? Math.min(1, Math.max(0, (elapsedWholeNotes - p0.t) / span)) : 1;
+          const x = p0.x + (p1.x - p0.x) * fraction;
           el.style.left = `${x}px`;
-          el.style.top = `${seg.top}px`;
+          el.style.top = `${line.top}px`;
         }
         rafRef.current = requestAnimationFrame(tick);
       };
