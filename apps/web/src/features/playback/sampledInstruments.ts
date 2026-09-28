@@ -38,6 +38,8 @@ export const GM_INSTRUMENT: Record<string, string> = {
   bassoon: "bassoon",
   guitar: "acoustic_guitar_steel",
   trombone: "trombone",
+  // (guitar's actual GM patch is genre-dependent — see GUITAR_GM_BY_GENRE
+  // below; this entry is only the fallback for a genre with no override.)
   trombone2: "trombone",
   tuba: "tuba",
   altoSax1: "alto_sax",
@@ -46,6 +48,26 @@ export const GM_INSTRUMENT: Record<string, string> = {
   // timbral match (mellow, lyrical) versus tuba's much darker, heavier tone.
   euphonium: "french_horn",
 };
+
+// One fixed guitar GM patch across every genre read as a mismatch on its
+// own, independent of any one patch's recording quality: rock's power-chord
+// chugging/riffs (genreStyles.ts's GUITAR_CHORD_PATTERNS) want a driven
+// electric tone, jazz's shell voicings want a clean hollow-body electric
+// tone, and samba's fingerstyle batida and classical's Alberti arpeggiation
+// both want a nylon-string acoustic tone — steel-string acoustic for all
+// four is the "one guitar sound for everything" complaint independent of
+// which specific GM recording is used. Keyed by Arrangement.genre; a genre
+// with no entry here falls back to GM_INSTRUMENT.guitar above.
+const GUITAR_GM_BY_GENRE: Record<string, string> = {
+  rock: "overdriven_guitar",
+  jazz: "electric_guitar_jazz",
+  samba: "acoustic_guitar_nylon",
+  classical: "acoustic_guitar_nylon",
+};
+
+function resolveGuitarGmName(genre: string | undefined): string {
+  return (genre && GUITAR_GM_BY_GENRE[genre]) || GM_INSTRUMENT.guitar;
+}
 
 // MusyngKite over FluidR3_GM: FluidR3_GM's brass/reed patches (trumpet,
 // french_horn, trombone, oboe, alto_sax) are thin, synth-like recordings —
@@ -96,17 +118,18 @@ function loadOne(Tone: typeof import("tone"), gmName: string): CachedInstrument 
 export async function loadSampledInstruments(
   Tone: typeof import("tone"),
   instrumentIds: string[],
+  genre?: string,
 ): Promise<Map<string, Smplr>> {
+  const resolveGmName = (id: string): string | undefined => {
+    if (id === "piano") return "piano";
+    if (id === "guitar") return resolveGuitarGmName(genre);
+    return GM_INSTRUMENT[id];
+  };
+
   const gmNames = new Set<string>();
   for (const id of instrumentIds) {
-    // SplendidGrandPiano is keyed as "piano" separately from the GM name
-    // table above (see loadOne) rather than through GM_INSTRUMENT, since it
-    // isn't a General MIDI soundfont instrument.
-    if (id === "piano") gmNames.add("piano");
-    else {
-      const gmName = GM_INSTRUMENT[id];
-      if (gmName) gmNames.add(gmName);
-    }
+    const gmName = resolveGmName(id);
+    if (gmName) gmNames.add(gmName);
   }
 
   const entries = [...gmNames].map((name) => [name, loadOne(Tone, name)] as const);
@@ -114,7 +137,7 @@ export async function loadSampledInstruments(
 
   const byId = new Map<string, Smplr>();
   for (const id of instrumentIds) {
-    const gmName = id === "piano" ? "piano" : GM_INSTRUMENT[id];
+    const gmName = resolveGmName(id);
     const entry = gmName ? cache.get(gmName) : undefined;
     if (entry) byId.set(id, entry.instrument);
   }

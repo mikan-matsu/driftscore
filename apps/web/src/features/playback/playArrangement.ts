@@ -220,7 +220,7 @@ export async function playArrangement(
 
   const pitchedInstrumentIds = partsToPlay.filter((p) => p.clef !== "percussion").map((p) => p.id);
   onLoading?.(true);
-  const sampledInstruments = await loadSampledInstruments(Tone, pitchedInstrumentIds);
+  const sampledInstruments = await loadSampledInstruments(Tone, pitchedInstrumentIds, arrangement.genre);
   onLoading?.(false);
 
   const isJazz = arrangement.genre === "jazz";
