@@ -31,11 +31,21 @@ const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 // notes," it's structurally incapable of representing the melody at all
 // (the 3rd/6th/7th degrees are a semitone off from every real note).
 const NATURAL_MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
+// Ryukyu scale (琉球音階) — do-mi-fa-so-ti, i.e. the major scale with the 2nd
+// and 6th degrees dropped (semitones from root: 0, 4, 5, 7, 11). The
+// characteristic scale of Okinawan/Amami folk melody; using MAJOR_SCALE's
+// 7-note diatonic set for an Okinawan tune would be the same category of
+// error as using it for 荒城の月's minor key above — the 2nd and 6th degrees
+// just don't belong in this idiom regardless of which specific notes a given
+// melody uses.
+const RYUKYU_SCALE = [0, 4, 5, 7, 11];
 
 /**
- * Simplified placeholder melody from scale-degree steps (0=root, 7=root+octave, ...).
+ * Simplified placeholder melody from scale-degree steps (0=root, scale.length=root+octave, ...).
  * Not a verified transcription of the original tune — real arrangement engine
- * will need accurate MusicXML/MIDI source data later.
+ * will need accurate MusicXML/MIDI source data later. `scale` can be any length
+ * (e.g. the 5-note RYUKYU_SCALE, not just a 7-note diatonic scale) — degree
+ * wrapping/octave placement is derived from the scale's own length, not hardcoded to 7.
  */
 function melodyFromDegrees(
   root: number,
@@ -45,8 +55,8 @@ function melodyFromDegrees(
 ): Melody {
   let t = 0;
   const ns: Note[] = steps.map(([degree, duration], i) => {
-    const octave = Math.floor(degree / 7);
-    const idx = ((degree % 7) + 7) % 7;
+    const octave = Math.floor(degree / scale.length);
+    const idx = ((degree % scale.length) + scale.length) % scale.length;
     const pitch = root + octave * 12 + scale[idx];
     const note: Note = { id: `n${i}`, pitch, start: t, duration, velocity: 100 };
     t += duration;
@@ -386,10 +396,52 @@ export const PRESET_SONGS: PresetSong[] = [
     id: "tanchame",
     title: "谷茶前(沖縄)",
     attribution: "伝承曲(沖縄民謡・1726年記録あり)",
+    // Re-scaled (2026-09-28) from the default 7-note MAJOR_SCALE to the
+    // 5-note RYUKYU_SCALE — see that constant's comment. The degree sequence
+    // itself is still an unverified placeholder, not a real transcription.
     melody: repeatMelody(melodyFromDegrees(60, 4, [
-      [0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2],
-      [5, 1], [4, 1], [2, 1], [0, 1], [2, 4],
-    ]), 2),
+      [0, 1], [1, 1], [2, 1], [1, 1], [0, 1], [1, 1], [2, 2],
+      [3, 1], [2, 1], [1, 1], [0, 1], [1, 4],
+    ], RYUKYU_SCALE), 2),
+  },
+  {
+    id: "asadoya-yunta",
+    title: "安里屋ユンタ(沖縄)",
+    attribution: "伝承曲(沖縄・八重山民謡)",
+    // Placeholder only, like the other minyo entries above (not a verified
+    // transcription) — but correctly in the Ryukyu scale this time from the
+    // start, rather than needing a later re-scale fix.
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [1, 1], [2, 2], [1, 1], [0, 1], [1, 2],
+      [2, 1], [3, 1], [2, 1], [1, 1], [0, 4],
+    ], RYUKYU_SCALE), 2),
+  },
+  {
+    id: "tinsagu-nu-hana",
+    title: "てぃんさぐぬ花(沖縄)",
+    attribution: "伝承曲(沖縄わらべうた)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 2], [1, 1], [2, 1], [3, 2], [2, 1], [1, 1],
+      [0, 1], [1, 1], [0, 4],
+    ], RYUKYU_SCALE), 2),
+  },
+  {
+    id: "toshin-doi",
+    title: "唐船ドーイ(沖縄)",
+    attribution: "伝承曲(沖縄民謡・カチャーシー)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [2, 1], [2, 1], [3, 1], [2, 1], [1, 1], [0, 1], [1, 2],
+      [2, 1], [1, 1], [0, 1], [1, 1], [0, 4],
+    ], RYUKYU_SCALE), 2),
+  },
+  {
+    id: "jin-jin",
+    title: "じんじん(沖縄わらべうた)",
+    attribution: "伝承曲(沖縄わらべうた・蛍呼び歌)",
+    melody: repeatMelody(melodyFromDegrees(60, 4, [
+      [0, 1], [1, 1], [0, 1], [1, 1], [2, 2], [1, 1], [0, 1],
+      [1, 1], [0, 4],
+    ], RYUKYU_SCALE), 2),
   },
   {
     id: "tanko-bushi",
