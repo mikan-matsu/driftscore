@@ -5,7 +5,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "dev:api": "tsx watch lambda/arrange/localServer.ts"
   },
   "devDependencies": {
     "@swc/core": "^1.15.0",

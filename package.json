@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace=apps/web --",
+    "dev:api": "npm run dev:api --workspace=infra/cdk --",
     "build:web": "npm run build --workspace=apps/web",
     "cdk": "npm run cdk --workspace=infra/cdk"
   },
