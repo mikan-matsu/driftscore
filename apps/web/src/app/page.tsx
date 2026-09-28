@@ -92,6 +92,7 @@ export default function Home() {
   // its own indicator distinct from `isPlaying`.
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
+  const [melodyCursor, setMelodyCursor] = useState<ScoreCursor | null>(null);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   // Which parts are muted (greyed out in the score, silent in playback) —
   // independent of selectedPartId's solo/tab selection. A Finale-style
@@ -225,6 +226,7 @@ export default function Home() {
 
   const BPM = 108;
   useCursorSync(cursor, isPlaying, BPM);
+  useCursorSync(melodyCursor, isPlayingMelody, BPM);
 
   async function handleTogglePlay() {
     if (!arrangement) return;
@@ -290,12 +292,15 @@ export default function Home() {
               <button
                 key={barCount}
                 type="button"
-                onClick={() => setSelectedSong({
-                  id: `random-${Date.now()}`,
-                  title: "ランダムテーマ",
-                  attribution: `自動生成(即興・${barCount}小節)`,
-                  melody: generateRandomMelody(barCount),
-                })}
+                onClick={() => {
+                  const { melody, keyLabel } = generateRandomMelody(barCount);
+                  setSelectedSong({
+                    id: `random-${Date.now()}`,
+                    title: "ランダムテーマ",
+                    attribution: `自動生成(即興・${barCount}小節・${keyLabel})`,
+                    melody,
+                  });
+                }}
                 className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 🎲 {barCount}小節のランダムテーマを生成する
@@ -305,7 +310,9 @@ export default function Home() {
           {selectedSong && (
             <div className="flex flex-col gap-2">
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                選択中: {selectedSong.title}(ドラッグで音高、ダブルクリックで長さを編集できます)
+                選択中: {selectedSong.title}
+                {selectedSong.id.startsWith("random-") ? `(${selectedSong.attribution})` : ""}
+                (ドラッグで音高、ダブルクリックで長さを編集できます)
               </p>
               <div className="relative">
                 <button
@@ -321,6 +328,7 @@ export default function Home() {
                   title={selectedSong.title}
                   compact
                   arrangement={melodyPreviewArrangement(selectedSong.melody)}
+                  onCursorReady={setMelodyCursor}
                   onNoteEdit={(_partId, note, newPitch) => {
                     setSelectedSong({ ...selectedSong, melody: updateMelodyNote(selectedSong.melody, note.id, { pitch: newPitch }) });
                   }}
