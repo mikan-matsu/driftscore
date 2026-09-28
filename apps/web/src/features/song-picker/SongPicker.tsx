@@ -41,7 +41,7 @@ export function SongPicker({
       />
       <div
         className={`w-full rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${
-          compact ? "max-h-64 overflow-y-auto" : "overflow-hidden"
+          compact ? "max-h-40 overflow-y-auto" : "overflow-hidden"
         }`}
       >
         {filtered.length === 0 ? (
