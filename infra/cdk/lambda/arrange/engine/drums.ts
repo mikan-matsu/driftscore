@@ -1,4 +1,4 @@
-import type { ChordSymbol, Genre, Note } from "./types";
+import type { ChordSymbol, Genre, Note, Section } from "./types";
 
 // General MIDI percussion key map (channel 10) — reusing the standard rather
 // than inventing our own numbering, since both the MusicXML export and the
@@ -102,10 +102,45 @@ const SAMBA_BAR: DrumHit[] = [
 
 const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR, samba: SAMBA_BAR };
 
-// How often a normal bar is swapped for a fill — periodic energy/punctuation
-// rather than a section-boundary-aware fill (which would need `sections`
-// threaded into this function; not done here, see project memory).
+// How often a normal bar is swapped for a fill when there's no song-form
+// section structure to anchor fills to (a plain "theme"-only arrangement is
+// just one continuous section) — periodic energy/punctuation. When multiple
+// sections ARE available (a "full" song form), fills instead land on each
+// section's last bar (see chooseFillBars below), since a fill naturally
+// reads as "something new is coming" and a fixed modulo count has no reason
+// to line up with where sections actually end.
 const FILL_EVERY_BARS = 8;
+
+/** A section shorter than this reads as awkward with a fill eating its only
+ * bar or two of steady groove — skip fill-on-boundary for short sections. */
+const MIN_SECTION_BARS_FOR_FILL = 4;
+
+/**
+ * Picks which bar indices (0-based, matching ChordSymbol.bar) get a fill.
+ * With real song-form sections, a fill marks the last bar of each section
+ * that's followed by another section — there's nothing to lead into after
+ * the final section, and a "break" section already gets its own dedicated
+ * hits from applyBreakHits, so a fill there would just double up. Falls back
+ * to the old fixed-period modulo when there's no more-than-one-section
+ * structure to anchor to (plain "theme" song form).
+ */
+function chooseFillBars(totalBars: number, sections?: Section[]): Set<number> {
+  if (!sections || sections.length <= 1) {
+    const fillBars = new Set<number>();
+    for (let bar = 0; bar < totalBars; bar++) {
+      if ((bar + 1) % FILL_EVERY_BARS === 0) fillBars.add(bar);
+    }
+    return fillBars;
+  }
+  const fillBars = new Set<number>();
+  for (let i = 0; i < sections.length - 1; i++) {
+    const section = sections[i];
+    if (section.kind === "break") continue;
+    if (section.barCount < MIN_SECTION_BARS_FOR_FILL) continue;
+    fillBars.add(section.startBar + section.barCount - 1);
+  }
+  return fillBars;
+}
 
 // One bar's worth of "something changes" energy in place of the steady
 // groove — a pool of a few variants per genre (à la solo.ts's ~20 melodic
@@ -293,10 +328,16 @@ export interface DrumVoices {
  * as a hihat needs its own down-stem note, not a shared stem with the
  * up-stem hihat — a single chord group can only have one stem direction.
  */
-export function renderDrumPart(chords: ChordSymbol[], genre: Genre, beatsPerBar: number): DrumVoices | null {
+export function renderDrumPart(
+  chords: ChordSymbol[],
+  genre: Genre,
+  beatsPerBar: number,
+  sections?: Section[],
+): DrumVoices | null {
   const pattern = PATTERNS[genre];
   if (!pattern) return null;
   const fillPool = FILL_PATTERNS[genre] ?? [pattern];
+  const fillBars = chooseFillBars(chords.length, sections);
 
   const up: Note[] = [];
   const down: Note[] = [];
@@ -304,16 +345,13 @@ export function renderDrumPart(chords: ChordSymbol[], genre: Genre, beatsPerBar:
   let downId = 0;
   let fillCount = 0;
   chords.forEach((chord, barIndex) => {
-    // Every FILL_EVERY_BARS-th bar swaps in a fill instead of the steady
-    // groove — periodic punctuation, not tied to song-form section
-    // boundaries (renderDrumPart isn't given `sections`, only a flat bar
-    // count from the caller's chord list). Successive fills cycle through
-    // the genre's pool in order rather than repeating the same one — with
-    // only 3 variants and fills spaced 8 bars apart, a simple sequential
-    // index (not solo.ts's coprime-offset trick, which exists to dodge a
-    // *coincidental* alignment between two different cycle lengths) is
-    // enough to avoid a fill ever repeating twice in a row.
-    const isFillBar = (barIndex + 1) % FILL_EVERY_BARS === 0;
+    // Successive fills cycle through the genre's pool in order rather than
+    // repeating the same one — with only 3 variants and fills spaced
+    // several bars apart, a simple sequential index (not solo.ts's
+    // coprime-offset trick, which exists to dodge a *coincidental*
+    // alignment between two different cycle lengths) is enough to avoid a
+    // fill ever repeating twice in a row.
+    const isFillBar = fillBars.has(barIndex);
     const barPattern = isFillBar ? fillPool[fillCount++ % fillPool.length] : pattern;
     for (const hit of barPattern) {
       const start = chord.bar * beatsPerBar + hit.offset;

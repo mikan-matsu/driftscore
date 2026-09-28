@@ -68,7 +68,7 @@ export function generateArrangement(
   // swingTime() for the actual transform.
   let parts = assignRoles(fullMelody, chords, genre, distortion, preset.instruments, key, sections, preset.layout);
 
-  let drumVoices = renderDrumPart(chords, genre, beatsPerBar);
+  let drumVoices = renderDrumPart(chords, genre, beatsPerBar, sections);
 
   const breakSection = sections.find((s) => s.kind === "break");
   if (breakSection) {
