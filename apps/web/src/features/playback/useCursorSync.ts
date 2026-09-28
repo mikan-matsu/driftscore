@@ -50,6 +50,22 @@ interface LineSegment {
   containerId: string | null;
 }
 
+// OSMD's iterator reports a huge sentinel value (observed: 99999) from
+// currentTimeStamp.RealValue for the final point recorded right as
+// EndReached becomes true — there's no real "current timestamp" once
+// iteration is past the last note, so OSMD returns a fixed placeholder
+// instead of the actual end-of-piece time. Left untreated, this stretches
+// the LAST line-segment's tEnd out to ~99999 whole notes, which — for a
+// short "theme"-only arrangement that fits entirely on one line/system —
+// means the ENTIRE piece becomes that one distorted segment, and the
+// cursor crawls at a small fraction of its real speed (elapsed time /
+// 99999 is ~0 for the first many real seconds of playback). A longer,
+// multi-line "full" song-form arrangement mostly hid this: every segment
+// except the very last one used real timestamps, so only the final line's
+// glide sped up implausibly fast right at the end — a small enough
+// glitch to go unnoticed next to a short piece going almost fully frozen.
+const SENTINEL_TIMESTAMP_JUMP = 1000; // real pieces are nowhere near 1000 whole notes long
+
 /** Silently walks the whole score once to record each line's time/x span (and which page container it belongs to), then resets the cursor to the start. */
 function buildLineSegments(cursor: ScoreCursor): LineSegment[] {
   const el = getCursorElement(cursor);
@@ -57,13 +73,20 @@ function buildLineSegments(cursor: ScoreCursor): LineSegment[] {
 
   cursor.reset();
   const points: { t: number; x: number; y: number; containerId: string | null }[] = [];
+  let prevT = 0;
   while (true) {
+    const rawT = cursor.iterator.currentTimeStamp.RealValue;
+    // A sentinel jump keeps this point's real x/y (the cursor still needs to
+    // visually reach the final position) but pins its time to just after the
+    // previous real point, so it doesn't stretch the segment's duration.
+    const t = rawT - prevT > SENTINEL_TIMESTAMP_JUMP ? prevT : rawT;
     points.push({
-      t: cursor.iterator.currentTimeStamp.RealValue,
+      t,
       x: el.offsetLeft,
       y: el.offsetTop,
       containerId: el.parentElement?.id ?? null,
     });
+    prevT = t;
     if (cursor.iterator.EndReached) break;
     cursor.next();
   }
