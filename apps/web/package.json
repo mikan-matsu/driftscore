@@ -17,7 +17,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "smplr": "^1.0.0",
-    "tone": "^15.1.22"
+    "tone": "^15.1.22",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

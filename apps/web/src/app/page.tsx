@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SongPicker, type PresetSong } from "@/features/song-picker";
+import Link from "next/link";
 import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
 import type { Note } from "@/features/piano-roll";
+import { useAppStore } from "@/store/appStore";
 
 type Step = "pick" | "options" | "result";
 
@@ -34,7 +35,10 @@ function updateNote(arrangement: Arrangement, partId: string, noteId: string, ch
 
 export default function Home() {
   const [step, setStep] = useState<Step>("pick");
-  const [selectedSong, setSelectedSong] = useState<PresetSong | null>(null);
+  // Song selection lives on its own page (/songs) now, not inline here —
+  // the shared store is what lets that page's pick survive the navigation
+  // back to "/".
+  const selectedSong = useAppStore((s) => s.selectedSong);
   const [options, setOptions] = useState<ArrangeOptions>({
     genre: "jazz",
     distortion: 30,
@@ -93,11 +97,6 @@ export default function Home() {
   // selectedSong's title would already show the new song while the score
   // underneath silently stayed on the old one.
   const generationIdRef = useRef(0);
-
-  function handleSelectSong(song: PresetSong) {
-    setSelectedSong(song);
-    setStep("options");
-  }
 
   async function handleGenerate() {
     if (!selectedSong || !API_URL) return;
@@ -228,7 +227,21 @@ export default function Home() {
 
         <section className="w-full max-w-3xl flex flex-col gap-3">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">1. 曲を選ぶ</h2>
-          <SongPicker selectedId={selectedSong?.id ?? null} onSelect={handleSelectSong} />
+          <Link
+            href="/songs"
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          >
+            {selectedSong ? (
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">
+                {selectedSong.title}
+              </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500">曲を選んでください</span>
+            )}
+            <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+              {selectedSong ? "変更する" : "選ぶ"} →
+            </span>
+          </Link>
         </section>
 
         {selectedSong && (
