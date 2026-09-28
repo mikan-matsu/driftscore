@@ -5,7 +5,7 @@ import { INSTRUMENTS } from "./instruments";
 import type { Arrangement, ChordSymbol, Note } from "./types";
 
 export type IssueSeverity = "error" | "warning";
-export type IssueCategory = "range" | "dissonance" | "leap" | "overlap" | "bad-duration" | "overflow";
+export type IssueCategory = "range" | "dissonance" | "leap" | "overlap" | "bad-duration" | "overflow" | "unplayable";
 
 export interface ValidationIssue {
   severity: IssueSeverity;
@@ -22,6 +22,13 @@ export interface ValidationIssue {
 // for a melody/harmony line — bass parts legitimately leap more (walking
 // bass, register jumps between phrases) so they're excluded.
 const LARGE_LEAP_SEMITONES = 19;
+
+// A drummer has two hands; a percussion "up" voice note (see drums.ts's
+// DrumVoices — kick lives in the separate "down" voice) whose `pitches`
+// array asks for more simultaneous hand-struck hits than that is a
+// genuinely unplayable chord, not a stylistic choice, regardless of how
+// many limbs the "down" voice's kick also claims at the same instant.
+const MAX_SIMULTANEOUS_HAND_HITS = 2;
 
 /**
  * Mechanical sanity checks over a generated Arrangement's actual note data —
@@ -40,7 +47,27 @@ export function validateArrangement(arrangement: Arrangement, key: EstimatedKey)
   const chordByBar = new Map<number, ChordSymbol>(arrangement.chords.map((c) => [c.bar, c]));
 
   for (const part of arrangement.parts) {
-    if (part.clef === "percussion") continue;
+    if (part.clef === "percussion") {
+      // Skipped by every check above (they assume real, voice-leadable
+      // pitches — see renderDrumPart's own doc comment for why GM
+      // percussion keys can't go through that machinery), but a
+      // percussion part still has its own mechanical playability
+      // constraint: a human drummer only has two hands.
+      for (const note of part.melody.notes) {
+        const hitCount = note.pitches && note.pitches.length > 0 ? note.pitches.length : 1;
+        if (hitCount > MAX_SIMULTANEOUS_HAND_HITS) {
+          issues.push({
+            severity: "error",
+            category: "unplayable",
+            partId: part.id,
+            measure: Math.floor(note.start / beatsPerBar),
+            beat: note.start,
+            message: `${hitCount} simultaneous hand-struck hits at beat ${note.start} — more than a drummer's 2 hands can play at once`,
+          });
+        }
+      }
+      continue;
+    }
     const instrument = INSTRUMENTS[part.id];
     const voices = [part.melody.notes, ...(part.secondaryVoice ? [part.secondaryVoice.notes] : [])];
 
