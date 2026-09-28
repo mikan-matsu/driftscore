@@ -23,41 +23,88 @@ export interface FretPlacement {
   fret: number;
 }
 
+function frettedSpan(placements: FretPlacement[]): number {
+  const fretted = placements.map((p) => p.fret).filter((f) => f > 0);
+  return fretted.length >= 2 ? Math.max(...fretted) - Math.min(...fretted) : 0;
+}
+
 /**
  * Assigns each of `pitches` (typically one chord's simultaneous tones) to a
  * distinct string+fret. Two tones can never share a string at the same
- * instant on a real guitar, so this greedily claims strings low-pitch-first
- * (a comping voicing's bass note usually wants a lower/thicker string
- * anyway), preferring the fret closest to `targetFret` — the previous
- * note's fret, so the line reads as one continuous hand position moving up
- * or down the neck rather than jumping between fret 2 and fret 14 for two
- * adjacent notes that happen to share a pitch class.
+ * instant on a real guitar. Each pitch has at most one valid fret per
+ * string (fret = pitch - openPitch), so this exhaustively searches every
+ * way to assign distinct strings to the pitches and picks the one that
+ * minimizes the chord's own fret span first (a human hand can only stretch
+ * so far in one position), and only then prefers frets close to `targetFret` — the previous note's fret,
+ * so the line reads as one continuous hand position moving up or down the
+ * neck. Chord sizes here are small (well under the 6 strings available),
+ * so the exhaustive search is cheap.
+ *
+ * An earlier version picked each note's string+fret independently, sorted
+ * only by closeness to targetFret — two notes could each individually be
+ * "close to target" while landing far from EACH OTHER (a real chord shape
+ * measured up to 14 frets wide, nowhere near playable), since nothing
+ * considered the chord's own internal spread at all.
  */
 function assignFrets(pitches: number[], targetFret: number): FretPlacement[] {
-  const order = pitches.map((_, i) => i).sort((a, b) => pitches[a] - pitches[b]);
-  const usedStrings = new Set<number>();
-  const results: FretPlacement[] = new Array(pitches.length);
+  const optionsPerNote: FretPlacement[][] = pitches.map((pitch) => {
+    const inRange = GUITAR_STRINGS.map((s) => ({ string: s.string, fret: pitch - s.openPitch })).filter(
+      (c) => c.fret >= 0 && c.fret <= MAX_FRET,
+    );
+    if (inRange.length > 0) return inRange;
+    // Out of the normal playable span on every string (a very low or very
+    // high pitch reaching this part) — fall back to whichever string gets
+    // closest, clamped, rather than emitting nothing.
+    return GUITAR_STRINGS.map((s) => ({ string: s.string, fret: Math.max(0, Math.min(MAX_FRET, pitch - s.openPitch)) }));
+  });
 
-  for (const idx of order) {
-    const pitch = pitches[idx];
-    let candidates = GUITAR_STRINGS.filter((s) => !usedStrings.has(s.string))
-      .map((s) => ({ string: s.string, fret: pitch - s.openPitch }))
-      .filter((c) => c.fret >= 0 && c.fret <= MAX_FRET);
-    if (candidates.length === 0) {
-      // Out of the normal playable span on every open string (a very low or
-      // very high pitch reaching this part) — fall back to whichever unused
-      // string gets closest, clamped, rather than emitting nothing.
-      candidates = GUITAR_STRINGS.filter((s) => !usedStrings.has(s.string)).map((s) => ({
-        string: s.string,
-        fret: Math.max(0, Math.min(MAX_FRET, pitch - s.openPitch)),
-      }));
+  let best: FretPlacement[] | null = null;
+  let bestSpan = Infinity;
+  let bestTargetDist = Infinity;
+
+  function search(idx: number, usedStrings: Set<number>, chosen: FretPlacement[]) {
+    if (idx === pitches.length) {
+      const span = frettedSpan(chosen);
+      const targetDist = chosen.reduce((sum, c) => sum + Math.abs(c.fret - targetFret), 0) / chosen.length;
+      if (span < bestSpan || (span === bestSpan && targetDist < bestTargetDist)) {
+        bestSpan = span;
+        bestTargetDist = targetDist;
+        best = [...chosen];
+      }
+      return;
     }
-    candidates.sort((a, b) => Math.abs(a.fret - targetFret) - Math.abs(b.fret - targetFret) || a.fret - b.fret);
-    const chosen = candidates[0];
-    usedStrings.add(chosen.string);
-    results[idx] = chosen;
+    // Guitar chords here max out well under 6 notes, but if this is ever
+    // called with more simultaneous pitches than strings, the (idx+1)th+
+    // note simply has no unused string left — every candidate below gets
+    // filtered out and the recursion for this branch dead-ends, same as
+    // running out of options for any other reason.
+    for (const opt of optionsPerNote[idx]) {
+      if (usedStrings.has(opt.string)) continue;
+      usedStrings.add(opt.string);
+      chosen.push(opt);
+      search(idx + 1, usedStrings, chosen);
+      chosen.pop();
+      usedStrings.delete(opt.string);
+    }
   }
-  return results;
+
+  search(0, new Set(), []);
+
+  if (best) return best;
+
+  // No valid full assignment exists at all (more simultaneous pitches than
+  // strings) — fall back to the old greedy per-note behavior so callers
+  // always get a result, rather than nothing. A genuinely unplayable input
+  // in this direction is out of scope for this fix.
+  const usedStrings = new Set<number>();
+  return pitches.map((_, idx) => {
+    const candidates = optionsPerNote[idx]
+      .filter((c) => !usedStrings.has(c.string))
+      .sort((a, b) => Math.abs(a.fret - targetFret) - Math.abs(b.fret - targetFret));
+    const chosen = candidates[0] ?? { string: GUITAR_STRINGS[0].string, fret: 0 };
+    usedStrings.add(chosen.string);
+    return chosen;
+  });
 }
 
 /**
