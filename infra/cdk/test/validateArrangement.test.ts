@@ -1,6 +1,7 @@
 import { generateArrangement } from "../lambda/arrange/engine/generateArrangement";
 import { estimateKey } from "../lambda/arrange/engine/keyEstimation";
 import { validateArrangement, summarizeIssues } from "../lambda/arrange/engine/validateArrangement";
+import { ENSEMBLE_PRESETS } from "../lambda/arrange/engine/ensembles";
 import type { Genre, Melody, Note } from "../lambda/arrange/engine/types";
 
 // Mechanical sanity checks over generated output, across a representative
@@ -133,9 +134,19 @@ describe("validateArrangement — mechanical sanity checks across the generation
  */
 function findRegisterCrossings(arrangement: ReturnType<typeof generateArrangement>) {
   const melodyPart = arrangement.parts.find((p) => p.id === arrangement.melodyPartId)!;
+  // A layout ensemble's melody doublers (e.g. windBand's flute/altoSax1/
+  // trumpetBb, see ensembles.ts) deliberately play the same line as the
+  // melody, often in a higher register — they're SUPPOSED to sound at or
+  // above the melody's own pitch, so counting that as a "crossing" would
+  // just measure "how much does this arrangement double the tune," not a
+  // genuine masking defect. Excluded here so this check only looks at real
+  // independent harmony/bass/countermelody material, same as every other
+  // ensemble already gets.
+  const preset = ENSEMBLE_PRESETS[arrangement.ensembleId];
+  const melodyDoublers = new Set(preset?.layout?.melodyDoublers ?? []);
   const crossings: { part: string; accompPitch: number; melodyPitch: number; at: number }[] = [];
   for (const part of arrangement.parts) {
-    if (part.id === melodyPart.id || part.clef === "percussion") continue;
+    if (part.id === melodyPart.id || part.clef === "percussion" || melodyDoublers.has(part.id)) continue;
     for (const note of part.melody.notes) {
       const maxPitch = Math.max(...(note.pitches ?? [note.pitch]));
       const overlapping = melodyPart.melody.notes.filter(
@@ -173,6 +184,15 @@ describe("register overlap between melody and accompaniment", () => {
     "rock/brassQuintet": 130,
     "classical/brassQuintet": 110,
     "samba/brassQuintet": 50,
+    // windBand (2026-09-28): measured 94-105/225-236/196-202/224-239 over 5
+    // runs x genre (jazz/rock/classical/samba) with melody doublers excluded
+    // (see findRegisterCrossings' comment) — same underlying SATB-voicing
+    // limitation as woodwindQuartet/brassQuintet's harmony groups, just at
+    // large-ensemble scale (7 harmony-group instruments instead of 2-4).
+    "jazz/windBand": 160,
+    "rock/windBand": 350,
+    "classical/windBand": 300,
+    "samba/windBand": 350,
   };
 
   for (const genre of GENRES) {
@@ -183,7 +203,7 @@ describe("register overlap between melody and accompaniment", () => {
       });
     }
 
-    for (const ensembleId of ["clarinetGuitarBass", "woodwindQuartet", "brassQuintet"]) {
+    for (const ensembleId of ["clarinetGuitarBass", "woodwindQuartet", "brassQuintet", "windBand"]) {
       it(`${genre} / ${ensembleId} / full: known-gap crossings don't regress`, () => {
         const arrangement = generateArrangement(TWINKLE, genre, 30, ensembleId, null, "full");
         const ceiling = KNOWN_GAP_CEILINGS[`${genre}/${ensembleId}`];

@@ -481,23 +481,82 @@ export function assignRoles(
   if (layout) {
     // Each group is its own independently-voiced SATB-style comping stack
     // (renderHarmonyVoices), not one giant stack across the whole ensemble —
-    // see EnsembleLayout's doc comment for why. Harmony-line/countermelody
-    // (the flat-model's call-and-response texture below) isn't attempted
-    // here yet — a deliberate v1 scope cut for the wind-band preset, not an
-    // oversight; every instrument in a group just comps.
+    // see EnsembleLayout's doc comment for why. On top of that, exactly one
+    // instrument across ALL groups gets the harmony-line (parallel-third
+    // "ハモリ") texture in the piece's second half, and one more gets the
+    // countermelody answering the theme's rests in the first half — same
+    // call-and-response texture the small-ensemble path below already has,
+    // picked the same way (highest-register monophonic instrument for the
+    // harmony line, next-highest remaining one for the countermelody), just
+    // selected across the flattened group membership instead of `restHarmony`
+    // since a layout ensemble's harmony instruments live inside groups.
+    const allHarmonyInstruments = layout.harmonyGroups.flatMap((groupIds) =>
+      groupIds.map((id) => ensemble.find((i) => i.id === id)!),
+    );
+    const { harmonyFromBeat, countermelodyFromBeat, countermelodyUntilBeat } = textureRanges(
+      sections,
+      beatsPerBar,
+      chords.length,
+    );
+    const harmonyLineInstrument =
+      allHarmonyInstruments.length > 0
+        ? allHarmonyInstruments.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top))
+        : null;
+    const nonHarmonyLine = allHarmonyInstruments.filter((i) => i.id !== harmonyLineInstrument?.id);
+    const countermelodyInstrument =
+      nonHarmonyLine.length >= 2
+        ? nonHarmonyLine.reduce((top, i) => (i.rangeHigh > top.rangeHigh ? i : top))
+        : null;
+
     for (const groupIds of layout.harmonyGroups) {
       const groupInstruments = groupIds.map((id) => ensemble.find((i) => i.id === id)!);
       const lowestRange = Math.min(...groupInstruments.map((i) => i.rangeLow));
       const lows = bassFloors.map((f) => Math.max(lowestRange, f));
       const voices = renderHarmonyVoices(chords, genre, beatsPerBar, groupInstruments, ceilings, lows, ensemble.length);
       for (const instrument of groupInstruments) {
+        const comping = voices.get(instrument.id) ?? [];
+        let notes = comping;
+
+        if (instrument.id === harmonyLineInstrument?.id) {
+          const harmonyLine = foldMelodyToRange(
+            renderParallelHarmony(melodyPart.melody, key),
+            instrument.rangeLow,
+            instrument.rangeHigh,
+          ).notes.filter((n) => n.start >= harmonyFromBeat);
+          notes = [...comping.filter((n) => n.start < harmonyFromBeat), ...harmonyLine];
+        } else if (instrument.id === countermelodyInstrument?.id) {
+          const startingPitch = Math.round(
+            ((instrument.idiomaticLow ?? instrument.rangeLow) + (instrument.idiomaticHigh ?? instrument.rangeHigh)) / 2,
+          );
+          const answers = foldMelodyToRange(
+            {
+              beatsPerBar,
+              notes: renderCountermelody(
+                melodyPart.melody.notes,
+                chords,
+                beatsPerBar,
+                countermelodyUntilBeat,
+                startingPitch,
+                countermelodyFromBeat,
+              ),
+            },
+            instrument.rangeLow,
+            instrument.rangeHigh,
+          ).notes;
+          notes = [
+            ...comping.filter((n) => n.start < countermelodyFromBeat),
+            ...answers,
+            ...comping.filter((n) => n.start >= countermelodyUntilBeat),
+          ];
+        }
+
         harmonyParts.push({
           id: instrument.id,
           name: instrument.name,
           clef: instrument.clef,
           transposeSemitones: instrument.transposeSemitones,
           polyphonic: instrument.polyphonic,
-          melody: { beatsPerBar, notes: voices.get(instrument.id) ?? [] },
+          melody: { beatsPerBar, notes },
         });
       }
     }
