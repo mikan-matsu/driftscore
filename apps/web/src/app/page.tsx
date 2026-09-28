@@ -54,6 +54,20 @@ export default function Home() {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [cursor, setCursor] = useState<ScoreCursor | null>(null);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  // Which parts are muted (greyed out in the score, silent in playback) —
+  // independent of selectedPartId's solo/tab selection. A Finale-style
+  // "click a part off" toggle: e.g. mute just the drums while everything
+  // else still plays, vs. selectedPartId's "play ONLY this one part."
+  const [mutedPartIds, setMutedPartIds] = useState<Set<string>>(new Set());
+
+  function toggleMutedPart(partId: string) {
+    setMutedPartIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(partId)) next.delete(partId);
+      else next.add(partId);
+      return next;
+    });
+  }
   // Click-to-select on the rendered score (see project memory
   // `project_osmd_note_id_finding`) — first slice of the planned drag-edit
   // notation UI; editing itself isn't wired up yet, this just surfaces what
@@ -196,7 +210,7 @@ export default function Home() {
       0,
       ...partsToPlay.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
     );
-    await playArrangement(arrangement, BPM, selectedPartId, setIsLoadingAudio);
+    await playArrangement(arrangement, BPM, selectedPartId, setIsLoadingAudio, mutedPartIds);
     window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
   }
 
@@ -290,25 +304,44 @@ export default function Home() {
                       >
                         スコア全体
                       </button>
-                      {arrangement.parts.map((part) => (
-                        <button
-                          key={part.id}
-                          type="button"
-                          onClick={() => setSelectedPartId(part.id)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                            selectedPartId === part.id
-                              ? "bg-green-500 text-white"
-                              : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-                          }`}
-                        >
-                          {part.name}
-                        </button>
-                      ))}
+                      {arrangement.parts.map((part) => {
+                        const isMuted = mutedPartIds.has(part.id);
+                        return (
+                          <span key={part.id} className="inline-flex overflow-hidden rounded-full border border-slate-300 dark:border-slate-600">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPartId(part.id)}
+                              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                selectedPartId === part.id
+                                  ? "bg-green-500 text-white"
+                                  : isMuted
+                                    ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                              }`}
+                            >
+                              {part.name}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleMutedPart(part.id)}
+                              title={isMuted ? `${part.name}のミュートを解除` : `${part.name}をミュート(再生せず、譜表もグレーアウト)`}
+                              aria-pressed={isMuted}
+                              className={`border-l px-2 py-1 text-xs transition-colors ${
+                                isMuted
+                                  ? "border-slate-300 bg-slate-300 text-slate-700 dark:border-slate-600 dark:bg-slate-600 dark:text-slate-200"
+                                  : "border-slate-300 text-slate-400 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"
+                              }`}
+                            >
+                              {isMuted ? "🔇" : "🔊"}
+                            </button>
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
                 <ScoreViewer
-                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title, selectedPartId ?? undefined)}
+                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title, selectedPartId ?? undefined, mutedPartIds)}
                   title={selectedSong?.title}
                   arrangement={arrangement}
                   onCursorReady={setCursor}

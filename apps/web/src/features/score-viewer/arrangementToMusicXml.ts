@@ -135,7 +135,17 @@ interface NoteXmlOptions {
    * note, since idiomatic fret choice depends on the *previous* note's hand
    * position, not just the current one. */
   tab?: Map<string, FretPlacement[]>;
+  /** MusicXML note `color` attribute — used to grey out a muted part's
+   * noteheads/stems/rests (see MUTED_COLOR) without removing the part from
+   * the rendered score, so the reader can still see what a muted instrument
+   * WOULD have played. */
+  color?: string;
 }
+
+/** Muted-part grey — matches Tailwind's slate-400, distinct enough from
+ * normal black noteheads to read as "off" at a glance but not so light it
+ * disappears against the page background. */
+const MUTED_COLOR = "#94a3b8";
 
 function noteXml(
   durationBeats: number,
@@ -144,12 +154,13 @@ function noteXml(
   options: NoteXmlOptions = {},
   beamXml = "",
 ): string {
-  const { isPercussion = false, voice, stem, partId, tab } = options;
+  const { isPercussion = false, voice, stem, partId, tab, color } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
   const voiceXml = voice ? `<voice>${voice}</voice>` : "";
   const stemXml = stem ? `<stem>${stem}</stem>` : "";
+  const colorAttr = color ? ` color="${color}"` : "";
   const pitches = note ? (note.pitches && note.pitches.length > 0 ? note.pitches : [note.pitch]) : [];
   // Carries the underlying Note.id through to the rendered SVG (OSMD copies
   // this MusicXML `id` attribute onto its GraphicalNote), so a click/drag on
@@ -159,13 +170,13 @@ function noteXml(
   const idAttr = note ? ` id="note-${partId ?? "p"}-${note.id}"` : "";
 
   if (pitches.length === 0) {
-    return `<note><rest/><duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`;
+    return `<note${colorAttr}><rest/><duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`;
   }
   if (isPercussion) {
     return pitches
       .map((gmKey, i) => {
         const { positionXml, noteheadXml } = unpitchedXml(gmKey);
-        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}${beamXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}${beamXml}</note>`;
       })
       .join("");
   }
@@ -185,14 +196,14 @@ function noteXml(
         const technicalXml = placement
           ? `<notations><technical><string>${placement.string}</string><fret>${placement.fret}</fret></technical></notations>`
           : "";
-        return `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}${technicalXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}${technicalXml}</note>`;
       })
       .join("");
   }
   return pitches
     .map(
       (pitch, i) =>
-        `<note${i === 0 ? idAttr : ""}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}</note>`,
+        `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}</note>`,
     )
     .join("");
 }
@@ -374,15 +385,17 @@ function partMeasuresXml(
   systemBreaks?: Set<number>,
   pageBreaks?: Set<number>,
   showSwingLabel?: boolean,
+  isMuted?: boolean,
 ): string {
   const isPercussion = part.clef === "percussion";
   const isTab = isTabPart(part.id);
   const hasSecondVoice = !!part.secondaryVoice;
+  const color = isMuted ? MUTED_COLOR : undefined;
   const primaryOptions: NoteXmlOptions = isPercussion
-    ? { isPercussion: true, voice: 1, stem: "up", partId: part.id }
+    ? { isPercussion: true, voice: 1, stem: "up", partId: part.id, color }
     : isTab
-      ? { partId: part.id, tab: assignGuitarTab(part.melody.notes) }
-      : { partId: part.id };
+      ? { partId: part.id, tab: assignGuitarTab(part.melody.notes), color }
+      : { partId: part.id, color };
   const measures = melodyToMeasures(part.melody, part.transposeSemitones, primaryOptions);
   while (measures.length < measureCount) {
     measures.push([noteXml(beatsPerBar, null, part.transposeSemitones, primaryOptions)]);
@@ -390,7 +403,7 @@ function partMeasuresXml(
 
   let secondMeasures: string[][] = [];
   if (part.secondaryVoice) {
-    const secondaryOptions: NoteXmlOptions = { isPercussion: true, voice: 2, stem: "down", partId: part.id };
+    const secondaryOptions: NoteXmlOptions = { isPercussion: true, voice: 2, stem: "down", partId: part.id, color };
     secondMeasures = melodyToMeasures(part.secondaryVoice, part.transposeSemitones, secondaryOptions);
     while (secondMeasures.length < measureCount) {
       secondMeasures.push([noteXml(beatsPerBar, null, part.transposeSemitones, secondaryOptions)]);
@@ -557,8 +570,17 @@ function computePageBreaks(systemBreaks: Set<number>, numParts: number): Set<num
   return pageBreaks;
 }
 
-/** Converts a generated Arrangement (multiple parts) into multi-staff MusicXML for OSMD. */
-export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftScore", singlePartId?: string): string {
+/** Converts a generated Arrangement (multiple parts) into multi-staff MusicXML for OSMD.
+ * `mutedPartIds`: parts to render greyed-out (see MUTED_COLOR) rather than
+ * omitted entirely — a muted part still shows what it would have played,
+ * matching playArrangement.ts's own mutedPartIds (which actually silences
+ * it), so the score and the audio agree on which parts are "off". */
+export function arrangementToMusicXml(
+  arrangement: Arrangement,
+  title = "DriftScore",
+  singlePartId?: string,
+  mutedPartIds?: Set<string>,
+): string {
   const measureCounts = arrangement.parts.map((p) => melodyToMeasures(p.melody).length);
   const measureCount = Math.max(1, ...measureCounts);
 
@@ -588,7 +610,8 @@ export function arrangementToMusicXml(arrangement: Arrangement, title = "DriftSc
       const chordsPerMeasure = p.id === arrangement.melodyPartId ? arrangement.chords : undefined;
       const labels = i === 0 ? sectionLabelForMeasure : undefined;
       const showSwingLabel = i === 0 && arrangement.genre === "jazz";
-      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels, systemBreaks, pageBreaks, showSwingLabel)}</part>`;
+      const isMuted = mutedPartIds?.has(p.id) ?? false;
+      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels, systemBreaks, pageBreaks, showSwingLabel, isMuted)}</part>`;
     })
     .join("");
 

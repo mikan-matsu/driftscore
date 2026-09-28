@@ -191,12 +191,18 @@ export function stopPlayback() {
  * a loading indicator: unlike a synthesized oscillator, a sample-based
  * instrument's first use in a session genuinely has to download audio
  * before it can play anything.
+ *
+ * `mutedPartIds` silences specific parts (e.g. "just mute the drums") while
+ * everything else still plays — independent of `partId` soloing one part
+ * to the exclusion of all others. Muting the same part a solo already
+ * selects plays nothing for that part, same as any other combination.
  */
 export async function playArrangement(
   arrangement: Arrangement,
   bpm = 108,
   partId?: string | null,
   onLoading?: (loading: boolean) => void,
+  mutedPartIds?: Set<string>,
 ) {
   stopPlayback();
 
@@ -206,9 +212,11 @@ export async function playArrangement(
   const secondsPerBeat = 60 / bpm;
   const disposables: Disposable[] = [];
 
-  const partsToPlay = partId && arrangement.parts.some((p) => p.id === partId)
-    ? arrangement.parts.filter((p) => p.id === partId)
-    : arrangement.parts;
+  const partsToPlay = (
+    partId && arrangement.parts.some((p) => p.id === partId)
+      ? arrangement.parts.filter((p) => p.id === partId)
+      : arrangement.parts
+  ).filter((p) => !mutedPartIds?.has(p.id));
 
   const pitchedInstrumentIds = partsToPlay.filter((p) => p.clef !== "percussion").map((p) => p.id);
   onLoading?.(true);

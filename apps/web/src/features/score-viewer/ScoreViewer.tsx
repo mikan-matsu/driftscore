@@ -187,6 +187,11 @@ export function ScoreViewer({
           // its own auto-fit, which doesn't reliably paginate at all.
           newSystemFromXML: true,
           newPageFromXML: true,
+          // Off by default in OSMD — without it, a MusicXML <note color="...">
+          // attribute (used to grey out a muted part, see
+          // arrangementToMusicXml.ts's MUTED_COLOR) is silently ignored and
+          // every notehead renders plain black regardless of what the XML says.
+          coloringEnabled: true,
         });
         // OSMD's own `zoom` only scales the notation *within* each A4 page —
         // the page (the <svg> canvas) itself stays a fixed pixel size
