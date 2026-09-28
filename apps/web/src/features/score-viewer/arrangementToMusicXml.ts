@@ -1,7 +1,7 @@
 import type { Melody, Note } from "@/features/piano-roll";
 import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol, Section, SectionKind } from "./arrangementTypes";
 import { assignGuitarTab, type FretPlacement } from "./guitarTab";
-import { DRUM_DISPLAY } from "./percussionMap";
+import { DRUM_DISPLAY, DRUM_NAME, drumDisplayHeight } from "./percussionMap";
 
 /** Parts notated on a 6-line TAB staff (string/fret) instead of standard notation — currently just the guitar. */
 function isTabPart(partId: string): boolean {
@@ -27,6 +27,52 @@ function rehearsalXml(label: string): string {
  * but meant to be played unevenly. */
 function wordsXml(text: string): string {
   return `<direction placement="above"><direction-type><words font-style="italic">${text}</words></direction-type></direction>`;
+}
+
+/** Plain (non-italic), small-print legend text — the real published-score
+ * convention for a multi-instrument percussion staff: a legend line above
+ * the staff at its first appearance naming what each line/space/notehead
+ * means, since a percussion staff (unlike a pitched one) can't be read by
+ * pitch alone. See CLAUDE.md's "Domain know-how" entry on concert-band
+ * percussion notation. */
+function legendXml(text: string): string {
+  return `<direction placement="above"><direction-type><words font-size="7">${text}</words></direction-type></direction>`;
+}
+
+/**
+ * Builds the "which line/space is which drum" legend for a percussion
+ * part's first measure, e.g. "B.D. / S.D. / Mid Tom / Hi Tom / Hi-Hat" —
+ * only the instruments this specific arrangement's pattern actually uses
+ * (a rock pattern never plays maracas, so it shouldn't clutter the legend
+ * with irrelevant entries), ordered bottom-to-top by their staff position
+ * to match how a reader's eye scans the staff. GM keys pinned to the same
+ * line/space (snare + its own side-stick) collapse to one legend entry.
+ */
+function drumLegendXml(part: ArrangementPart): string {
+  const usedKeys = new Set<number>();
+  const collectFrom = (notes: Note[]) => {
+    for (const note of notes) {
+      for (const key of note.pitches ?? [note.pitch]) usedKeys.add(key);
+    }
+  };
+  collectFrom(part.melody.notes);
+  if (part.secondaryVoice) collectFrom(part.secondaryVoice.notes);
+
+  const heightByName = new Map<string, number>();
+  for (const key of usedKeys) {
+    const name = DRUM_NAME[key];
+    if (!name) continue;
+    const height = drumDisplayHeight(key);
+    const existing = heightByName.get(name);
+    if (existing === undefined || height < existing) heightByName.set(name, height);
+  }
+  if (heightByName.size === 0) return "";
+
+  const legend = [...heightByName.entries()]
+    .sort(([, a], [, b]) => a - b)
+    .map(([name]) => name)
+    .join(" / ");
+  return legendXml(legend);
 }
 
 const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
@@ -377,8 +423,9 @@ function partMeasuresXml(
       // (and, on this app's side, playArrangement.ts's swingTime()) to
       // interpret them unevenly rather than spelling that out note-by-note.
       const swing = showSwingLabel && i === 0 ? wordsXml("Swing") : "";
+      const drumLegend = isPercussion && i === 0 ? drumLegendXml(part) : "";
       const secondVoiceXml = hasSecondVoice ? backupXml + (secondMeasures[i]?.join("") ?? "") : "";
-      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${swing}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
+      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${swing}${drumLegend}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
     })
     .join("");
 }
