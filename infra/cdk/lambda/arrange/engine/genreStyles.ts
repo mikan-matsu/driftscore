@@ -128,6 +128,58 @@ export const STYLES: Record<Genre, GenreStyle> = {
       ],
     ],
   },
+  funk: {
+    bassOctaveBase: 33,
+    useSeventh: true,
+    // Funk comping ("stabs"): short, staccato hits on syncopated 16th-grid
+    // positions, with real silence in between — the opposite of jazz/samba's
+    // continuous comping cells. A held chord reads as generic pop/rock, not
+    // funk; the groove comes from WHERE the short stabs land relative to the
+    // 16th grid, not from a sustained voicing.
+    chordPatterns: [
+      [
+        { offset: 0, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 0.75, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 1.5, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 2, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 2.75, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 3.5, duration: 0.25, tones: [1, 2, 3] },
+      ],
+      [
+        { offset: 0, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 1, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 1.75, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 2.5, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 3, duration: 0.25, tones: [1, 2, 3] },
+        { offset: 3.75, duration: 0.25, tones: [1, 2, 3] },
+      ],
+    ],
+    // Syncopated 16th-note bass, the genre's real signature — root-heavy
+    // with the occasional 5th/7th push, landing on off-16th positions
+    // ("a of 1", "and of 2", etc.) rather than square on the beat.
+    bassPatterns: [
+      [
+        { offset: 0, duration: 0.25, tones: [0] },
+        { offset: 0.75, duration: 0.25, tones: [0] },
+        { offset: 1, duration: 0.25, tones: [0] },
+        { offset: 1.5, duration: 0.25, tones: [2] },
+        { offset: 2, duration: 0.25, tones: [0] },
+        { offset: 2.75, duration: 0.25, tones: [0] },
+        { offset: 3, duration: 0.25, tones: [0] },
+        { offset: 3.5, duration: 0.25, tones: [2] },
+      ],
+      [
+        { offset: 0, duration: 0.25, tones: [0] },
+        { offset: 0.5, duration: 0.25, tones: [0] },
+        { offset: 1.25, duration: 0.25, tones: [3] },
+        { offset: 1.75, duration: 0.25, tones: [0] },
+        { offset: 2, duration: 0.25, tones: [0] },
+        { offset: 2.5, duration: 0.25, tones: [0] },
+        { offset: 3.25, duration: 0.25, tones: [2] },
+        { offset: 3.75, duration: 0.25, tones: [0] },
+      ],
+    ],
+  },
 };
 
 /**
@@ -342,6 +394,23 @@ const GUITAR_CHORD_PATTERNS: Partial<Record<Genre, BarEvent[][]>> = {
       { offset: 1, duration: 1, tones: [2] },
       { offset: 2, duration: 1, tones: [1] },
       { offset: 3, duration: 1, tones: [2] },
+    ],
+  ],
+  funk: [
+    // "Chicken scratch": muted, staccato 16th-note dyad hits (root+5th, like
+    // rock's power chord) on irregular syncopated positions — real funk
+    // rhythm guitar, distinct from the shared funk chordPatterns' fuller
+    // triad stabs (a real funk arrangement layers both: keys/horns punching
+    // triads, guitar scratching a tighter dyad underneath).
+    [
+      { offset: 0, duration: 0.25, tones: [0, 2] },
+      { offset: 0.5, duration: 0.25, tones: [0, 2] },
+      { offset: 0.75, duration: 0.25, tones: [0, 2] },
+      { offset: 1.5, duration: 0.25, tones: [0, 2] },
+      { offset: 2, duration: 0.25, tones: [0, 2] },
+      { offset: 2.5, duration: 0.25, tones: [0, 2] },
+      { offset: 3.25, duration: 0.25, tones: [0, 2] },
+      { offset: 3.75, duration: 0.25, tones: [0, 2] },
     ],
   ],
 };

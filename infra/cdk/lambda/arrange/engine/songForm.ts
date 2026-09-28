@@ -140,7 +140,10 @@ export function buildSongForm(
   }
 
   const restMelody: Melody = { beatsPerBar, notes: [] };
-  const genreUsesSeventh = genre === "jazz" || genre === "samba";
+  // Matches STYLES[genre].useSeventh in genreStyles.ts — jazz/samba/funk all
+  // comp with 7th-chord voicings, so their intro/ending vamp should build the
+  // same seventh-chord quality rather than defaulting to a plain triad.
+  const genreUsesSeventh = genre === "jazz" || genre === "samba" || genre === "funk";
 
   const introMelody = buildIntroMelody(themeMelody, introBars, beatsPerBar);
   addSection("intro", introBars, introMelody, buildVampProgression(key, introBars));

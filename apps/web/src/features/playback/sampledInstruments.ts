@@ -63,6 +63,11 @@ const GUITAR_GM_BY_GENRE: Record<string, string> = {
   jazz: "electric_guitar_jazz",
   samba: "acoustic_guitar_nylon",
   classical: "acoustic_guitar_nylon",
+  // Funk rhythm guitar ("chicken scratch") is a clean, percussive electric
+  // tone — neither jazz's warm hollow-body sound nor rock's driven/overdriven
+  // one, both of which would mask the scratch pattern's short, dry staccato
+  // character.
+  funk: "electric_guitar_clean",
 };
 
 function resolveGuitarGmName(genre: string | undefined): string {

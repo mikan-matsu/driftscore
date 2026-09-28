@@ -14,7 +14,7 @@ export interface Melody {
   beatsPerBar: number;
 }
 
-export type Genre = "jazz" | "rock" | "classical" | "samba";
+export type Genre = "jazz" | "rock" | "classical" | "samba" | "funk";
 
 export type ChordQuality = "maj" | "min" | "dim";
 

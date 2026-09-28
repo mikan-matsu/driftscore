@@ -100,7 +100,33 @@ const SAMBA_BAR: DrumHit[] = [
   { offset: 3.75, duration: 0.25, pitches: [GM_SIDE_STICK] },
 ];
 
-const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR, samba: SAMBA_BAR };
+// Classic funk groove: a tight, continuous 16th-note closed-hihat, with the
+// kick syncopated onto off-16th positions ("a" of 1, "and" of 2, "e" of 3,
+// "and" of 4) rather than square on the beat — that syncopated kick against
+// a straight 16th hihat is the genre's actual rhythmic signature, distinct
+// from rock's on-the-beat kick. Backbeat snare stays put on 2 and 4, same as
+// rock — funk still resolves to the same backbeat, it's the kick and hihat
+// subdivision that mark it as funk rather than rock.
+const FUNK_BAR: DrumHit[] = [
+  { offset: 0, duration: 0.25, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+  { offset: 0.25, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 0.5, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 0.75, duration: 0.25, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+  { offset: 1, duration: 0.25, pitches: [GM_SNARE, GM_HIHAT_CLOSED] },
+  { offset: 1.25, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 1.5, duration: 0.25, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+  { offset: 1.75, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 2, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 2.25, duration: 0.25, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+  { offset: 2.5, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 2.75, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 3, duration: 0.25, pitches: [GM_SNARE, GM_HIHAT_CLOSED] },
+  { offset: 3.25, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+  { offset: 3.5, duration: 0.25, pitches: [GM_KICK, GM_HIHAT_CLOSED] },
+  { offset: 3.75, duration: 0.25, pitches: [GM_HIHAT_CLOSED] },
+];
+
+const PATTERNS: Partial<Record<Genre, DrumHit[]>> = { rock: ROCK_BAR, jazz: JAZZ_BAR, samba: SAMBA_BAR, funk: FUNK_BAR };
 
 // How often a normal bar is swapped for a fill when there's no song-form
 // section structure to anchor fills to (a plain "theme"-only arrangement is
@@ -305,7 +331,56 @@ const SAMBA_FILLS: DrumHit[][] = [
   ],
 ];
 
-const FILL_PATTERNS: Partial<Record<Genre, DrumHit[][]>> = { rock: ROCK_FILLS, jazz: JAZZ_FILLS, samba: SAMBA_FILLS };
+// Funk fills stay mostly on the snare (ghost-note-style rapid 16ths) rather
+// than sweeping across the toms the way a rock fill does — a tom-heavy fill
+// reads as rock/arena, not funk, where the snare itself carries most of a
+// break's syncopated interest. The hihat drops out during the fill (unlike
+// FUNK_BAR, which keeps it going throughout the groove) so the snare pattern
+// reads clearly instead of being buried under a continuous 16th ostinato.
+const FUNK_FILLS: DrumHit[][] = [
+  // Syncopated snare 16ths with two rests, ending on a kick/snare punch.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.25, pitches: [GM_KICK] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3, duration: 0.25, pitches: [GM_KICK] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_SNARE] },
+  ],
+  // A single held-back gap (beat 2) before a denser snare run into the next bar.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_KICK] },
+    { offset: 0.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3, duration: 0.25, pitches: [GM_KICK, GM_SNARE] },
+    { offset: 3.25, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3.75, duration: 0.25, pitches: [GM_SNARE] },
+  ],
+  // Toms reserved for just the very end, like ROCK_FILLS but shorter/sparser
+  // to stay in the funk idiom rather than a full rock cascade.
+  [
+    { offset: 0, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 0.75, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 1.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 2.5, duration: 0.25, pitches: [GM_SNARE] },
+    { offset: 3, duration: 0.25, pitches: [GM_HIGH_TOM] },
+    { offset: 3.25, duration: 0.25, pitches: [GM_MID_TOM] },
+    { offset: 3.5, duration: 0.5, pitches: [GM_LOW_TOM] },
+  ],
+];
+
+const FILL_PATTERNS: Partial<Record<Genre, DrumHit[][]>> = { rock: ROCK_FILLS, jazz: JAZZ_FILLS, samba: SAMBA_FILLS, funk: FUNK_FILLS };
 
 export interface DrumVoices {
   /** Hihat/snare/ride — standard drum notation convention: stems up. */

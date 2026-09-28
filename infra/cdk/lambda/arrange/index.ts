@@ -4,7 +4,7 @@ import { ENSEMBLE_PRESETS, DEFAULT_ENSEMBLE_ID } from "./engine/ensembles";
 import { INSTRUMENTS } from "./engine/instruments";
 import type { Genre, Melody } from "./engine/types";
 
-const GENRES: Genre[] = ["jazz", "rock", "classical", "samba"];
+const GENRES: Genre[] = ["jazz", "rock", "classical", "samba", "funk"];
 // Freeform custom-ensemble picks are capped here — no arranging-theory reason
 // for the exact number, just a sane ceiling on Lambda work per request and on
 // how unwieldy the resulting score gets; matches assignRoles.ts's

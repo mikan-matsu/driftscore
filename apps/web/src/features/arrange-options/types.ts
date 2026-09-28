@@ -1,4 +1,4 @@
-export type Genre = "jazz" | "rock" | "classical" | "samba";
+export type Genre = "jazz" | "rock" | "classical" | "samba" | "funk";
 
 export type SongForm = "theme" | "full";
 
@@ -45,6 +45,7 @@ export const GENRES: { id: Genre; label: string }[] = [
   { id: "rock", label: "ロック" },
   { id: "classical", label: "クラシック" },
   { id: "samba", label: "サンバ" },
+  { id: "funk", label: "ファンク" },
 ];
 
 export const ENSEMBLES: { id: string; label: string; description: string }[] = [

@@ -42,7 +42,7 @@ const TWINKLE: Melody = repeatMelody(
   2,
 );
 
-const GENRES: Genre[] = ["jazz", "rock", "classical", "samba"];
+const GENRES: Genre[] = ["jazz", "rock", "classical", "samba", "funk"];
 const ENSEMBLES = ["pianoTrio", "woodwindQuartet", "clarinetGuitarBass", "brassQuintet", "windBand"];
 const SONG_FORMS = ["theme", "full"] as const;
 
@@ -193,6 +193,18 @@ describe("register overlap between melody and accompaniment", () => {
     "rock/windBand": 350,
     "classical/windBand": 300,
     "samba/windBand": 350,
+    // funk (2026-09-28): measured 16-17/24-26/15-17/156-158 over 8 runs x
+    // ensemble (clarinetGuitarBass/woodwindQuartet/brassQuintet/windBand) —
+    // same underlying SATB-voicing/fixed-role-order limitation as every
+    // other genre above, not a funk-specific issue. Notably LOWER than
+    // jazz/rock/classical/samba's counts for the same ensembles: funk's
+    // chordPatterns/bassPatterns are short staccato stabs with real rests
+    // between them (see genreStyles.ts), so there's simply less accompaniment
+    // sounding at any given moment for a crossing to occur against.
+    "funk/clarinetGuitarBass": 26,
+    "funk/woodwindQuartet": 40,
+    "funk/brassQuintet": 26,
+    "funk/windBand": 240,
   };
 
   for (const genre of GENRES) {
