@@ -26,6 +26,11 @@ function repeatMelody(melody: Melody, times: number): Melody {
 }
 
 const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+// Natural minor (Aeolian) — e.g. 荒城の月, whose melody is fundamentally in a
+// minor key. Using MAJOR_SCALE for a minor-key song isn't just "some wrong
+// notes," it's structurally incapable of representing the melody at all
+// (the 3rd/6th/7th degrees are a semitone off from every real note).
+const NATURAL_MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
 
 /**
  * Simplified placeholder melody from scale-degree steps (0=root, 7=root+octave, ...).
@@ -36,12 +41,13 @@ function melodyFromDegrees(
   root: number,
   beatsPerBar: number,
   steps: [degree: number, duration: number][],
+  scale: number[] = MAJOR_SCALE,
 ): Melody {
   let t = 0;
   const ns: Note[] = steps.map(([degree, duration], i) => {
     const octave = Math.floor(degree / 7);
     const idx = ((degree % 7) + 7) % 7;
-    const pitch = root + octave * 12 + MAJOR_SCALE[idx];
+    const pitch = root + octave * 12 + scale[idx];
     const note: Note = { id: `n${i}`, pitch, start: t, duration, velocity: 100 };
     t += duration;
     return note;
@@ -54,33 +60,37 @@ export const PRESET_SONGS: PresetSong[] = [
     id: "twinkle-twinkle",
     title: "きらきら星",
     attribution: "伝承曲(フランス民謡)",
-    melody: repeatMelody(
-      {
-        beatsPerBar: 4,
-        notes: notes([
-          [60, 0, 1],
-          [60, 1, 1],
-          [67, 2, 1],
-          [67, 3, 1],
-          [69, 4, 1],
-          [69, 5, 1],
-          [67, 6, 2],
-          [65, 8, 1],
-          [65, 9, 1],
-          [64, 10, 1],
-          [64, 11, 1],
-          [62, 12, 1],
-          [62, 13, 1],
-          [60, 14, 2],
-        ]),
-      },
-      2,
-    ),
+    // Real structure is 6 lines, A-B-C-C-A-B (the previous version only had
+    // A-B, repeated as A-B-A-B — missing the "up above the world so high /
+    // like a diamond in the sky" (C) section entirely).
+    melody: {
+      beatsPerBar: 4,
+      notes: notes([
+        // A: Twinkle twinkle little star
+        [60, 0, 1], [60, 1, 1], [67, 2, 1], [67, 3, 1], [69, 4, 1], [69, 5, 1], [67, 6, 2],
+        // B: How I wonder what you are
+        [65, 8, 1], [65, 9, 1], [64, 10, 1], [64, 11, 1], [62, 12, 1], [62, 13, 1], [60, 14, 2],
+        // C: Up above the world so high
+        [67, 16, 1], [67, 17, 1], [65, 18, 1], [65, 19, 1], [64, 20, 1], [64, 21, 1], [62, 22, 2],
+        // C: Like a diamond in the sky
+        [67, 24, 1], [67, 25, 1], [65, 26, 1], [65, 27, 1], [64, 28, 1], [64, 29, 1], [62, 30, 2],
+        // A: Twinkle twinkle little star
+        [60, 32, 1], [60, 33, 1], [67, 34, 1], [67, 35, 1], [69, 36, 1], [69, 37, 1], [67, 38, 2],
+        // B: How I wonder what you are
+        [65, 40, 1], [65, 41, 1], [64, 42, 1], [64, 43, 1], [62, 44, 1], [62, 45, 1], [60, 46, 2],
+      ]),
+    },
   },
   {
     id: "frere-jacques",
     title: "かえるのうた",
     attribution: "伝承曲(ドイツ民謡)",
+    // NOTE (2026-09-28): a previous pass in this session wrongly "corrected"
+    // this to the Frère Jacques round's melody, based on an unverified
+    // assumption that かえるのうた is a Japanese lyric set to that same tune.
+    // The user confirmed the real melody opens Do-Re-Mi-Fa-Mi-Re-Do (matching
+    // this original version), not Frère Jacques' Do-Re-Mi-Do — reverted.
+    // The rest of this melody (past the opening phrase) is still unverified.
     melody: {
       beatsPerBar: 4,
       notes: notes([
@@ -227,10 +237,15 @@ export const PRESET_SONGS: PresetSong[] = [
     id: "kojo-no-tsuki",
     title: "荒城の月",
     attribution: "作曲:滝廉太郎(1879-1903)",
+    // FIXME: this is genuinely in a minor key (confirmed via Wikipedia and a
+    // real published transcription, 2026-09-28 — see feedback memory on
+    // melody verification) — fixed the SCALE (was wrongly major), but the
+    // specific degree sequence below is still the old unverified placeholder,
+    // not a real transcription. Don't trust the individual notes yet.
     melody: repeatMelody(melodyFromDegrees(57, 4, [
       [0, 2], [3, 1], [5, 1], [7, 2], [5, 1], [3, 1],
       [1, 2], [0, 1], [2, 1], [0, 4],
-    ]), 2),
+    ], NATURAL_MINOR_SCALE), 2),
   },
   {
     id: "hana",
