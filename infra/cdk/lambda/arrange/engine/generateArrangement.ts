@@ -80,7 +80,14 @@ export function generateArrangement(
   if (drumVoices) {
     const drumPart: ArrangementPart = {
       id: "drums",
-      name: "Drums",
+      // "Drums" (a kit: kick/snare/toms/cymbals) is the wrong word for what
+      // this part actually contains once hand percussion enters the mix —
+      // samba's pattern (see drums.ts's SAMBA_BAR) is built on maracas and
+      // agogô, instruments from a samba bateria, not a drum kit, even
+      // though they share this one notated part with the kick. Genres whose
+      // pattern really is just a drum kit (rock/jazz/funk: kick/snare/
+      // hihat/ride/toms, see ROCK_BAR/JAZZ_BAR/FUNK_BAR) keep "Drums".
+      name: genre === "samba" ? "Percussion" : "Drums",
       clef: "percussion",
       transposeSemitones: 0,
       polyphonic: true,

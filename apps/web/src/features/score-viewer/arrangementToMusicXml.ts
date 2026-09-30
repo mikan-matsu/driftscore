@@ -1,7 +1,8 @@
 import type { Melody, Note } from "@/features/piano-roll";
 import type { Arrangement, ArrangementPart, ChordQuality, ChordSymbol, Section, SectionKind } from "./arrangementTypes";
 import { assignGuitarTab, type FretPlacement } from "./guitarTab";
-import { DRUM_DISPLAY, DRUM_NAME, drumDisplayHeight } from "./percussionMap";
+import { DRUM_DISPLAY } from "./percussionMap";
+import { buildKeySpellingTable, fifthsForKey, type Spelling } from "./keySpelling";
 
 /** Parts notated on a 6-line TAB staff (string/fret) instead of standard notation — currently just the guitar. */
 function isTabPart(partId: string): boolean {
@@ -29,54 +30,6 @@ function wordsXml(text: string): string {
   return `<direction placement="above"><direction-type><words font-style="italic">${text}</words></direction-type></direction>`;
 }
 
-/** Plain (non-italic), small-print legend text — the real published-score
- * convention for a multi-instrument percussion staff: a legend line above
- * the staff at its first appearance naming what each line/space/notehead
- * means, since a percussion staff (unlike a pitched one) can't be read by
- * pitch alone. See CLAUDE.md's "Domain know-how" entry on concert-band
- * percussion notation. */
-function legendXml(text: string): string {
-  return `<direction placement="above"><direction-type><words font-size="7">${text}</words></direction-type></direction>`;
-}
-
-/**
- * Builds the "which line/space is which drum" legend for a percussion
- * part's first measure, e.g. "B.D. / S.D. / Mid Tom / Hi Tom / Hi-Hat" —
- * only the instruments this specific arrangement's pattern actually uses
- * (a rock pattern never plays maracas, so it shouldn't clutter the legend
- * with irrelevant entries), ordered bottom-to-top by their staff position
- * to match how a reader's eye scans the staff. GM keys pinned to the same
- * line/space (snare + its own side-stick) collapse to one legend entry.
- */
-function drumLegendXml(part: ArrangementPart): string {
-  const usedKeys = new Set<number>();
-  const collectFrom = (notes: Note[]) => {
-    for (const note of notes) {
-      for (const key of note.pitches ?? [note.pitch]) usedKeys.add(key);
-    }
-  };
-  collectFrom(part.melody.notes);
-  if (part.secondaryVoice) collectFrom(part.secondaryVoice.notes);
-
-  const heightByName = new Map<string, number>();
-  for (const key of usedKeys) {
-    const name = DRUM_NAME[key];
-    if (!name) continue;
-    const height = drumDisplayHeight(key);
-    const existing = heightByName.get(name);
-    if (existing === undefined || height < existing) heightByName.set(name, height);
-  }
-  if (heightByName.size === 0) return "";
-
-  const legend = [...heightByName.entries()]
-    .sort(([, a], [, b]) => a - b)
-    .map(([name]) => name)
-    .join(" / ");
-  return legendXml(legend);
-}
-
-const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
-const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const DIVISIONS = 4;
 
 const DURATION_TYPES: [beats: number, type: string][] = [
@@ -87,9 +40,9 @@ const DURATION_TYPES: [beats: number, type: string][] = [
   [4, "whole"],
 ];
 
-function pitchToStepOctaveAlter(pitch: number) {
-  const step = STEP_NAMES[pitch % 12];
-  const alter = ALTERS[pitch % 12];
+function pitchToStepOctaveAlter(pitch: number, spelling: Record<number, Spelling>) {
+  const pc = ((pitch % 12) + 12) % 12;
+  const { step, alter } = spelling[pc];
   const octave = Math.floor(pitch / 12) - 1;
   return { step, alter, octave };
 }
@@ -103,8 +56,8 @@ function noteTypeAndDots(beats: number): { type: string; dotted: boolean } {
   return { type: "quarter", dotted: false };
 }
 
-function pitchXml(pitch: number): string {
-  const { step, alter, octave } = pitchToStepOctaveAlter(pitch);
+function pitchXml(pitch: number, spelling: Record<number, Spelling>): string {
+  const { step, alter, octave } = pitchToStepOctaveAlter(pitch, spelling);
   return `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ""}<octave>${octave}</octave></pitch>`;
 }
 
@@ -135,6 +88,12 @@ interface NoteXmlOptions {
    * note, since idiomatic fret choice depends on the *previous* note's hand
    * position, not just the current one. */
   tab?: Map<string, FretPlacement[]>;
+  /** Per-pitch-class step/alter spelling for the arrangement's key (see
+   * keySpelling.ts) — every pitched note (not TAB, not percussion, which
+   * have their own spelling-independent notation) uses this instead of a
+   * fixed sharps-only table, so the key signature and note spelling agree
+   * and diatonic notes don't need a redundant accidental. */
+  spelling?: Record<number, Spelling>;
   /** MusicXML note `color` attribute — used to grey out a muted part's
    * noteheads/stems/rests (see MUTED_COLOR) without removing the part from
    * the rendered score, so the reader can still see what a muted instrument
@@ -147,14 +106,22 @@ interface NoteXmlOptions {
  * disappears against the page background. */
 const MUTED_COLOR = "#94a3b8";
 
+interface TieInfo {
+  /** This chunk is tied INTO the next one (i.e. not the last fragment of a split note). */
+  start: boolean;
+  /** This chunk is tied FROM the previous one (i.e. not the first fragment of a split note). */
+  stop: boolean;
+}
+
 function noteXml(
   durationBeats: number,
   note: Note | null,
   transposeSemitones: number,
   options: NoteXmlOptions = {},
   beamXml = "",
+  tie?: TieInfo,
 ): string {
-  const { isPercussion = false, voice, stem, partId, tab, color } = options;
+  const { isPercussion = false, voice, stem, partId, tab, color, spelling } = options;
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
@@ -168,6 +135,18 @@ function noteXml(
   // from. A note split across a measure boundary emits this id on each
   // resulting <note> chunk, since they're still the same logical note.
   const idAttr = note ? ` id="note-${partId ?? "p"}-${note.id}"` : "";
+  // A note whose duration overruns the room left in its measure (see
+  // melodyToChunks' bar-splitting) is written as multiple <note> elements —
+  // without a tie, that reads as several separately-attacked notes instead
+  // of one sustained note crossing the barline. <tie> (sound-only) and
+  // <notations><tied> (the engraved curve) both use the same start/stop
+  // vocabulary and are emitted together on every fragment (matching
+  // melodyToMusicXml.ts's melody-preview path, which already does this).
+  const tieSoundXml = note ? `${tie?.stop ? '<tie type="stop"/>' : ""}${tie?.start ? '<tie type="start"/>' : ""}` : "";
+  const tiedNotationXml =
+    note && (tie?.stop || tie?.start)
+      ? `<notations>${tie.stop ? '<tied type="stop"/>' : ""}${tie.start ? '<tied type="start"/>' : ""}</notations>`
+      : "";
 
   if (pitches.length === 0) {
     return `<note${colorAttr}><rest/><duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}</note>`;
@@ -176,7 +155,7 @@ function noteXml(
     return pitches
       .map((gmKey, i) => {
         const { positionXml, noteheadXml } = unpitchedXml(gmKey);
-        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}${beamXml}</note>`;
+        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${positionXml}<duration>${duration}</duration>${tieSoundXml}${voiceXml}<type>${type}</type>${dotXml}${stemXml}${noteheadXml}${beamXml}${tiedNotationXml}</note>`;
       })
       .join("");
   }
@@ -194,16 +173,20 @@ function noteXml(
       .map((pitch, i) => {
         const placement = placements[i];
         const technicalXml = placement
-          ? `<notations><technical><string>${placement.string}</string><fret>${placement.fret}</fret></technical></notations>`
+          ? `<technical><string>${placement.string}</string><fret>${placement.fret}</fret></technical>`
           : "";
-        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}${technicalXml}</note>`;
+        const notationsXml =
+          technicalXml || tiedNotationXml
+            ? `<notations>${tie?.stop ? '<tied type="stop"/>' : ""}${tie?.start ? '<tied type="start"/>' : ""}${technicalXml}</notations>`
+            : "";
+        return `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch, spelling!)}<duration>${duration}</duration>${tieSoundXml}${voiceXml}<type>${type}</type>${dotXml}${beamXml}${notationsXml}</note>`;
       })
       .join("");
   }
   return pitches
     .map(
       (pitch, i) =>
-        `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones)}<duration>${duration}</duration>${voiceXml}<type>${type}</type>${dotXml}${beamXml}</note>`,
+        `<note${i === 0 ? idAttr : ""}${colorAttr}>${i > 0 ? "<chord/>" : ""}${pitchXml(pitch + transposeSemitones, spelling!)}<duration>${duration}</duration>${tieSoundXml}${voiceXml}<type>${type}</type>${dotXml}${beamXml}${tiedNotationXml}</note>`,
     )
     .join("");
 }
@@ -229,6 +212,7 @@ function beamType(durationBeats: number): "eighth" | "16th" | null {
 interface Chunk {
   note: Note | null;
   duration: number;
+  tie?: TieInfo;
   /** Position within the measure, in beats — used to group chunks by beat for beaming (MusicXML has no auto-beaming; every beam has to be spelled out explicitly, per beat, or OSMD renders each note with its own flag instead of a connected beam). */
   startInMeasure: number;
 }
@@ -309,9 +293,8 @@ const KIND_XML: Record<ChordQuality, string> = {
   dim: '<kind text="dim">diminished</kind>',
 };
 
-function harmonyXml(chord: ChordSymbol): string {
-  const step = STEP_NAMES[chord.root];
-  const alter = ALTERS[chord.root];
+function harmonyXml(chord: ChordSymbol, spelling: Record<number, Spelling>): string {
+  const { step, alter } = spelling[((chord.root % 12) + 12) % 12];
   const rootXml = `<root-step>${step}</root-step>${alter ? `<root-alter>${alter}</root-alter>` : ""}`;
   return `<harmony><root>${rootXml}</root>${KIND_XML[chord.quality]}</harmony>`;
 }
@@ -328,6 +311,12 @@ function transposeXml(transposeSemitones: number): string {
   return `<transpose><chromatic>${-transposeSemitones}</chromatic></transpose>`;
 }
 
+// Epsilon-based rather than `> 0`: floating-point leftovers (e.g. from a
+// triplet's inexact 1/3 beat) can leave `remaining` at something like
+// -1e-16 instead of exactly 0, which is still "done", not another
+// (zero-ish-duration, spuriously tied) chunk to push.
+const REMAINDER_EPSILON = 1e-9;
+
 function melodyToChunks(melody: Melody): Chunk[][] {
   const beatsPerBar = melody.beatsPerBar;
   const sorted = [...melody.notes].sort((a, b) => a.start - b.start);
@@ -336,12 +325,21 @@ function melodyToChunks(melody: Melody): Chunk[][] {
 
   function pushChunk(note: Note | null, durationBeats: number) {
     let remaining = durationBeats;
-    while (remaining > 0) {
+    let isFirstChunk = true;
+    while (remaining > REMAINDER_EPSILON) {
       const roomLeft = beatsPerBar - measureBeats;
       const chunk = Math.min(remaining, roomLeft);
-      measures[measures.length - 1].push({ note, duration: chunk, startInMeasure: measureBeats });
+      const remainingAfter = remaining - chunk;
+      const isLastChunk = remainingAfter <= REMAINDER_EPSILON;
+      // Only a genuinely bar-split note needs tie start/stop at all — a
+      // single-chunk note (the overwhelmingly common case) is both its own
+      // first and last chunk, so both flags are false and noteXml() omits
+      // the tie/tied elements entirely.
+      const tie = note && !(isFirstChunk && isLastChunk) ? { start: !isLastChunk, stop: !isFirstChunk } : undefined;
+      measures[measures.length - 1].push({ note, duration: chunk, tie, startInMeasure: measureBeats });
       measureBeats += chunk;
-      remaining -= chunk;
+      remaining = remainingAfter;
+      isFirstChunk = false;
       if (measureBeats >= beatsPerBar) {
         measures.push([]);
         measureBeats = 0;
@@ -372,7 +370,7 @@ function melodyToChunks(melody: Melody): Chunk[][] {
 function melodyToMeasures(melody: Melody, transposeSemitones = 0, options: NoteXmlOptions = {}): string[][] {
   return melodyToChunks(melody).map((chunks) => {
     const beams = computeMeasureBeams(chunks);
-    return chunks.map((chunk, i) => noteXml(chunk.duration, chunk.note, transposeSemitones, options, beams[i]));
+    return chunks.map((chunk, i) => noteXml(chunk.duration, chunk.note, transposeSemitones, options, beams[i], chunk.tie));
   });
 }
 
@@ -380,6 +378,8 @@ function partMeasuresXml(
   part: ArrangementPart,
   beatsPerBar: number,
   measureCount: number,
+  fifths: number,
+  spelling: Record<number, Spelling>,
   chordsPerMeasure?: ChordSymbol[],
   sectionLabelForMeasure?: Map<number, string>,
   systemBreaks?: Set<number>,
@@ -394,8 +394,8 @@ function partMeasuresXml(
   const primaryOptions: NoteXmlOptions = isPercussion
     ? { isPercussion: true, voice: 1, stem: "up", partId: part.id, color }
     : isTab
-      ? { partId: part.id, tab: assignGuitarTab(part.melody.notes), color }
-      : { partId: part.id, color };
+      ? { partId: part.id, tab: assignGuitarTab(part.melody.notes), color, spelling }
+      : { partId: part.id, color, spelling };
   const measures = melodyToMeasures(part.melody, part.transposeSemitones, primaryOptions);
   while (measures.length < measureCount) {
     measures.push([noteXml(beatsPerBar, null, part.transposeSemitones, primaryOptions)]);
@@ -416,7 +416,7 @@ function partMeasuresXml(
     .map((notesXml, i) => {
       const attrs =
         i === 0
-          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef, isTab)}${isTab ? "" : transposeXml(part.transposeSemitones)}</attributes>`
+          ? `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>${fifths}</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>${clefXml(part.clef, isTab)}${isTab ? "" : transposeXml(part.transposeSemitones)}</attributes>`
           : "";
       // A <print new-system="yes"/> at measure i tells OSMD explicitly where
       // to break to a new line, rather than leaving it to auto-fit — see
@@ -428,7 +428,7 @@ function partMeasuresXml(
         : systemBreaks?.has(i)
           ? `<print new-system="yes"/>`
           : "";
-      const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i]) : "";
+      const harmony = chordsPerMeasure?.[i] ? harmonyXml(chordsPerMeasure[i], spelling) : "";
       const rehearsal = sectionLabelForMeasure?.has(i) ? rehearsalXml(sectionLabelForMeasure.get(i)!) : "";
       // "Swing" at measure 1 of the top staff only, like a real jazz chart —
       // the notation underneath is plain straight eighths (see JAZZ_BAR's
@@ -436,9 +436,8 @@ function partMeasuresXml(
       // (and, on this app's side, playArrangement.ts's swingTime()) to
       // interpret them unevenly rather than spelling that out note-by-note.
       const swing = showSwingLabel && i === 0 ? wordsXml("Swing") : "";
-      const drumLegend = isPercussion && i === 0 ? drumLegendXml(part) : "";
       const secondVoiceXml = hasSecondVoice ? backupXml + (secondMeasures[i]?.join("") ?? "") : "";
-      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${swing}${drumLegend}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
+      return `<measure number="${i + 1}">${attrs}${printXml}${rehearsal}${swing}${harmony}${notesXml.join("")}${secondVoiceXml}</measure>`;
     })
     .join("");
 }
@@ -581,8 +580,16 @@ export function arrangementToMusicXml(
   singlePartId?: string,
   mutedPartIds?: Set<string>,
 ): string {
-  const measureCounts = arrangement.parts.map((p) => melodyToMeasures(p.melody).length);
+  const measureCounts = arrangement.parts.map((p) => melodyToChunks(p.melody).length);
   const measureCount = Math.max(1, ...measureCounts);
+
+  // `key` is absent only for a frontend-only synthetic Arrangement (the raw
+  // melody preview, which renders through melodyToMusicXml instead — see
+  // arrangementTypes.ts) that never goes through the /arrange engine;
+  // defaulting to C major/no-sharps-or-flats there is a safe fallback, not a
+  // real-arrangement code path.
+  const fifths = fifthsForKey(arrangement.key ?? { root: 0, isMinor: false });
+  const spelling = buildKeySpellingTable(fifths);
 
   // Rehearsal marks (section labels) go on the top staff only, like a real
   // conductor's score — and only when there's more than the trivial single
@@ -611,7 +618,7 @@ export function arrangementToMusicXml(
       const labels = i === 0 ? sectionLabelForMeasure : undefined;
       const showSwingLabel = i === 0 && arrangement.genre === "jazz";
       const isMuted = mutedPartIds?.has(p.id) ?? false;
-      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, chordsPerMeasure, labels, systemBreaks, pageBreaks, showSwingLabel, isMuted)}</part>`;
+      return `<part id="${p.id}">${partMeasuresXml(p, arrangement.beatsPerBar, measureCount, fifths, spelling, chordsPerMeasure, labels, systemBreaks, pageBreaks, showSwingLabel, isMuted)}</part>`;
     })
     .join("");
 

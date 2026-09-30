@@ -212,6 +212,14 @@ export function ScoreViewer({
           // every notehead renders plain black regardless of what the XML says.
           coloringEnabled: true,
         });
+        // Both off by default in OSMD for a TAB staff (guitar's part — see
+        // arrangementToMusicXml.ts's isTabPart) — without them, a real chart
+        // showing a 4/4 time signature and beamed rhythm above the fret
+        // numbers instead rendered as neither: no time signature at all, and
+        // every eighth/16th note as an isolated flag instead of connected
+        // beams, making the rhythm unreadable from the TAB staff alone.
+        osmd.EngravingRules.TabTimeSignatureRendered = true;
+        osmd.EngravingRules.TabBeamsRendered = true;
         // OSMD's own `zoom` only scales the notation *within* each A4 page —
         // the page (the <svg> canvas) itself stays a fixed pixel size
         // regardless, so this alone can't make more of the score fit on

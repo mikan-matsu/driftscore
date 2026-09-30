@@ -75,13 +75,26 @@ export const GM_MARACAS = 70;
 export const DRUM_DISPLAY: Record<number, { step: string; octave: number; notehead?: string }> = {
   [GM_KICK]: { step: "F", octave: 4 },
   [GM_LOW_TOM]: { step: "G", octave: 4 },
-  [GM_SNARE]: { step: "A", octave: 4 },
+  // Corrected 2026-09-28 (later session, live user correction): plain-notehead
+  // snare (S.D.) sits at 第3間 (3rd space from the bottom = C5), not 第2間
+  // (A4) as an earlier pass in this same file had it — that A4 position is
+  // kept for GM_SIDE_STICK (the × rim-click symbol) only, which the user did
+  // not flag as wrong here.
+  [GM_SNARE]: { step: "C", octave: 5 },
   [GM_SIDE_STICK]: { step: "A", octave: 4, notehead: "x" },
   [GM_MID_TOM]: { step: "D", octave: 5 },
   [GM_HIGH_TOM]: { step: "E", octave: 5 },
   [GM_AGOGO_LOW]: { step: "F", octave: 5 },
   [GM_AGOGO_HIGH]: { step: "A", octave: 5 },
-  [GM_MARACAS]: { step: "B", octave: 5, notehead: "x" },
+  // Plain (not ×) notehead — corrected 2026-09-28 against a real samba
+  // drum-kit reference chart (/Users/akimatsu/workspace/学習用楽譜等/サンバドラム.png):
+  // the steady 16th-note shaker/tamborim ostinato this voices is notated
+  // with an ordinary filled notehead there, with × reserved for the
+  // separate accent voice (see drums.ts's SAMBA_BAR comment) — using × for
+  // both made every samba drum hit look like a cymbal/rim-click, obscuring
+  // the actual distinction the reference draws between the steady pulse and
+  // its accents.
+  [GM_MARACAS]: { step: "B", octave: 5 },
   [GM_HIHAT_CLOSED]: { step: "G", octave: 5, notehead: "x" },
   [GM_RIDE]: { step: "F", octave: 5, notehead: "x" },
 };
