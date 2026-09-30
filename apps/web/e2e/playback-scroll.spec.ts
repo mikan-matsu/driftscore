@@ -15,7 +15,13 @@ test.use({ viewport: { width: 900, height: 700 } });
 test("playback does not scroll the score away from its start", async ({ page }) => {
   await page.goto("/");
 
-  await page.locator("section", { hasText: "1. 曲を選ぶ" }).locator("button").first().click();
+  // Picks a specific, known-to-overflow song by name rather than "the first
+  // button in the list" — the preset song list's order/contents have
+  // changed more than once (songs added/removed), and a test that silently
+  // picks whatever happens to be first can start exercising a different,
+  // shorter melody that no longer overflows at this viewport, failing for a
+  // reason unrelated to the actual regression this test guards against.
+  await page.locator("section", { hasText: "1. 曲を選ぶ" }).getByText("きらきら星", { exact: false }).click();
   await expect(page.getByText("2. ジャンルと崩し度を決める")).toBeVisible();
   await page.getByRole("button", { name: "フル構成" }).click();
   await page.getByRole("button", { name: "アレンジを生成する" }).click();
