@@ -1,7 +1,5 @@
 import type { Melody, Note } from "@/features/piano-roll";
-
-const STEP_NAMES = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
-const ALTERS = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+import { buildKeySpellingTable, estimateKey, fifthsForKey } from "./keySpelling";
 // 12 (not 4) so a triplet eighth note (1/3 beat) is also an exact integer
 // division (12/3 = 4) alongside the plain binary durations below (quarter=12,
 // eighth=6, 16th=3, whole=48) — needed for TRIPLET_EIGHTH_BEATS support.
@@ -66,9 +64,9 @@ function computeTupletPositions(sorted: Note[]): (TupletInfo | undefined)[] {
   return positions;
 }
 
-function pitchToStepOctaveAlter(pitch: number) {
-  const step = STEP_NAMES[pitch % 12];
-  const alter = ALTERS[pitch % 12];
+function pitchToStepOctaveAlter(pitch: number, spelling: Record<number, { step: string; alter: number }>) {
+  const pc = ((pitch % 12) + 12) % 12;
+  const { step, alter } = spelling[pc];
   const octave = Math.floor(pitch / 12) - 1;
   return { step, alter, octave };
 }
@@ -91,8 +89,8 @@ function noteTypeAndDots(beats: number): { type: string; dotted: boolean } {
   return { type: "quarter", dotted: false };
 }
 
-function pitchXml(pitch: number): string {
-  const { step, alter, octave } = pitchToStepOctaveAlter(pitch);
+function pitchXml(pitch: number, spelling: Record<number, { step: string; alter: number }>): string {
+  const { step, alter, octave } = pitchToStepOctaveAlter(pitch, spelling);
   return `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ""}<octave>${octave}</octave></pitch>`;
 }
 
@@ -113,11 +111,18 @@ interface TieInfo {
  * engraved on the page) both use the same start/stop vocabulary and are
  * needed together; a rest has neither (rests are never tied).
  */
-function noteXml(durationBeats: number, pitch?: number, tuplet?: TupletInfo, tie?: TieInfo, beamXml = ""): string {
+function noteXml(
+  durationBeats: number,
+  pitch: number | undefined,
+  spelling: Record<number, { step: string; alter: number }>,
+  tuplet?: TupletInfo,
+  tie?: TieInfo,
+  beamXml = "",
+): string {
   const duration = Math.round(durationBeats * DIVISIONS);
   const { type, dotted } = noteTypeAndDots(durationBeats);
   const dotXml = dotted ? "<dot/>" : "";
-  const body = pitch === undefined ? "<rest/>" : pitchXml(pitch);
+  const body = pitch === undefined ? "<rest/>" : pitchXml(pitch, spelling);
   const tieSoundXml = pitch === undefined ? "" : `${tie?.stop ? '<tie type="stop"/>' : ""}${tie?.start ? '<tie type="start"/>' : ""}`;
   const timeModXml = tuplet
     ? "<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>"
@@ -219,16 +224,23 @@ function computeMeasureBeams(chunks: Chunk[]): string[] {
   return beams;
 }
 
-const ATTRIBUTES_XML = (beatsPerBar: number) =>
-  `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>0</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>`;
+const ATTRIBUTES_XML = (beatsPerBar: number, fifths: number) =>
+  `<attributes><divisions>${DIVISIONS}</divisions><key><fifths>${fifths}</fifths></key><time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>`;
 
 /**
  * Converts a Melody (as used by the piano-roll editor) into a single-part,
  * single-staff MusicXML document for display with OpenSheetMusicDisplay.
- * Assumes a fixed treble clef and no key signature (C major / A minor).
+ * Assumes a fixed treble clef. The key signature (and every note's
+ * step/alter spelling) is derived from the melody's own estimated key
+ * (see keySpelling.ts) rather than always being C major/A minor — a melody
+ * in, say, C minor gets a real 3-flat key signature and its scale notes need
+ * no per-note accidental, instead of every non-C-major note being spelled
+ * with a bare sharp against a declared key of no sharps/flats.
  */
 export function melodyToMusicXml(melody: Melody, title = "DriftScore"): string {
   const beatsPerBar = melody.beatsPerBar;
+  const fifths = fifthsForKey(estimateKey(melody));
+  const spelling = buildKeySpellingTable(fifths);
   const sorted = [...melody.notes].sort((a, b) => a.start - b.start);
 
   const measures: Chunk[][] = [[]];
@@ -286,9 +298,11 @@ export function melodyToMusicXml(melody: Melody, title = "DriftScore"): string {
 
   const measuresXml = measures
     .map((chunks, i) => {
-      const attrs = i === 0 ? ATTRIBUTES_XML(beatsPerBar) : "";
+      const attrs = i === 0 ? ATTRIBUTES_XML(beatsPerBar, fifths) : "";
       const beams = computeMeasureBeams(chunks);
-      const notesXml = chunks.map((chunk, k) => noteXml(chunk.duration, chunk.note?.pitch, chunk.tuplet, chunk.tie, beams[k]));
+      const notesXml = chunks.map((chunk, k) =>
+        noteXml(chunk.duration, chunk.note?.pitch, spelling, chunk.tuplet, chunk.tie, beams[k]),
+      );
       return `<measure number="${i + 1}">${attrs}${notesXml.join("")}</measure>`;
     })
     .join("");

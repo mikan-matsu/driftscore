@@ -31,11 +31,19 @@ export interface ArrangementPart {
   secondaryVoice?: Melody;
 }
 
+export interface KeySignature {
+  root: number;
+  isMinor: boolean;
+}
+
 export interface Arrangement {
   genre: string;
   distortion: number;
   ensembleId: string;
   beatsPerBar: number;
+  /** Absent for frontend-only synthetic arrangements (e.g. the raw-melody
+   * preview) that never went through the /arrange engine. */
+  key?: KeySignature;
   chords: ChordSymbol[];
   /** id of the part carrying the original melody — chord symbols attach to this part */
   melodyPartId: string;

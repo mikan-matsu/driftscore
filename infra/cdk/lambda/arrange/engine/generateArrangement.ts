@@ -95,6 +95,7 @@ export function generateArrangement(
     distortion,
     ensembleId: preset.id,
     beatsPerBar,
+    key,
     chords,
     // parts[0] is the melody instrument for every small preset (assignRoles's
     // default path always returns it first), but a layout-driven ensemble

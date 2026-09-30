@@ -49,11 +49,22 @@ export interface ArrangementPart {
   secondaryVoice?: Melody;
 }
 
+/** Pitch class 0-11 root + major/minor — the key this arrangement actually
+ * ended up in (either the input melody's estimated key, or the user's chosen
+ * `targetKeyRoot` when one was picked). Surfaced to the frontend since
+ * "お任せ" (auto) key selection otherwise gives no way to know what key was
+ * actually used. */
+export interface KeySignature {
+  root: number;
+  isMinor: boolean;
+}
+
 export interface Arrangement {
   genre: Genre;
   distortion: number;
   ensembleId: string;
   beatsPerBar: number;
+  key: KeySignature;
   chords: ChordSymbol[];
   /** id of the part carrying the original melody — chord symbols attach to this part */
   melodyPartId: string;
