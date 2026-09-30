@@ -5,13 +5,85 @@ import Link from "next/link";
 import { ArrangeOptionsForm, CUSTOM_ENSEMBLE_ID, type ArrangeOptions } from "@/features/arrange-options";
 import { ScoreViewer, arrangementToMusicXml, melodyToMusicXml, type Arrangement, type ScoreCursor } from "@/features/score-viewer";
 import { playArrangement, stopPlayback, useCursorSync } from "@/features/playback";
-import { SongPicker, generateRandomMelody } from "@/features/song-picker";
+import { SongPicker, generateRandomMelody, estimateKeyLabel } from "@/features/song-picker";
 import type { Melody, Note } from "@/features/piano-roll";
 import { useAppStore } from "@/store/appStore";
 
 type Step = "pick" | "options" | "result";
 
 const API_URL = process.env.NEXT_PUBLIC_ARRANGE_API_URL ?? "";
+
+const KEY_PITCH_CLASS_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+const DEFAULT_BPM = 108;
+const MIN_BPM = 40;
+const MAX_BPM = 300;
+
+/** A small "テンポ: ♩ = 120" stepper, matching the native macOS/DAW-style
+ * tempo field (quarter-note glyph + "=" + a spinner input) rather than a
+ * generic labeled number field — this is a genuinely standard convention
+ * for a tempo control, not a stylistic choice worth deviating from.
+ *
+ * Keeps its own local text state rather than clamping straight into the
+ * controlled `value` on every keystroke: clamping mid-typing (e.g. typing
+ * "12" over an existing "108") forces the input back to a boundary value
+ * (like MIN_BPM) after the very first digit, and the next keystroke then
+ * appends onto THAT instead of the digit the user meant to type next,
+ * snowballing into values like 300 the user never typed. Clamping only on
+ * blur (when the user is done editing) avoids fighting the browser mid-edit
+ * while still guaranteeing playback never sees an out-of-range bpm.
+ */
+function TempoControl({ bpm, onChange }: { bpm: number; onChange: (bpm: number) => void }) {
+  const [text, setText] = useState(String(bpm));
+  // Resets the local text when `bpm` changes from outside this control
+  // (e.g. programmatically) — done during render (React's documented
+  // "adjusting state when a prop changes" pattern), not in a useEffect,
+  // since setState-in-an-effect here would just re-render a second time
+  // for no benefit.
+  const [prevBpm, setPrevBpm] = useState(bpm);
+  if (bpm !== prevBpm) {
+    setPrevBpm(bpm);
+    setText(String(bpm));
+  }
+
+  return (
+    <label className="inline-flex items-center gap-1.5 self-start rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300">
+      <span>テンポ: ♩ =</span>
+      <input
+        type="number"
+        min={MIN_BPM}
+        max={MAX_BPM}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          const parsed = Number(text);
+          const clamped = Number.isNaN(parsed) ? bpm : Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(parsed)));
+          setText(String(clamped));
+          onChange(clamped);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        className="w-14 rounded border border-slate-300 bg-white px-1 py-0.5 text-right text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      />
+    </label>
+  );
+}
+
+/** dur/moll (this project's Japanese-music-education convention, not English
+ * major/minor — see the same choice in randomMelody.ts) label for whatever
+ * key the arrangement actually ended up in — the only way to know this when
+ * "調: お任せ" (auto) was picked, since the engine estimates the key itself.
+ * Jazz gets the English "C major"/"A minor" form instead — a real jazz chart
+ * is conventionally labeled in English regardless of the player's own
+ * language, unlike the dur/moll convention this app otherwise follows (per
+ * explicit user decision: genre-linked, result screen only). */
+function keyLabel(key: Arrangement["key"], genre?: string): string | null {
+  if (!key) return null;
+  const root = KEY_PITCH_CLASS_NAMES[((key.root % 12) + 12) % 12];
+  if (genre === "jazz") return `${root} ${key.isMinor ? "minor" : "major"}`;
+  return `${root}${key.isMinor ? "moll" : "dur"}`;
+}
 
 /** Applies a single-note edit (pitch drag or duration double-click, from ScoreViewer's onNoteEdit /
  * onNoteDurationEdit) to one note within one part's melody, without touching anything else — the
@@ -224,9 +296,14 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   });
 
-  const BPM = 108;
-  useCursorSync(cursor, isPlaying, BPM);
-  useCursorSync(melodyCursor, isPlayingMelody, BPM);
+  // Independent tempo per playback (melody preview vs. the generated
+  // arrangement) — a user previewing a raw melody slowly, then generating
+  // and listening to the arrangement at a different speed, shouldn't have
+  // one control silently change the other's.
+  const [meloBpm, setMeloBpm] = useState(DEFAULT_BPM);
+  const [arrangeBpm, setArrangeBpm] = useState(DEFAULT_BPM);
+  useCursorSync(cursor, isPlaying, arrangeBpm);
+  useCursorSync(melodyCursor, isPlayingMelody, meloBpm);
 
   async function handleTogglePlay() {
     if (!arrangement) return;
@@ -247,8 +324,8 @@ export default function Home() {
       0,
       ...partsToPlay.flatMap((p) => p.melody.notes.map((n) => n.start + n.duration)),
     );
-    await playArrangement(arrangement, BPM, selectedPartId, setIsLoadingAudio, mutedPartIds);
-    window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / BPM + 600);
+    await playArrangement(arrangement, arrangeBpm, selectedPartId, setIsLoadingAudio, mutedPartIds);
+    window.setTimeout(() => setIsPlaying(false), (lastEnd * 60 * 1000) / arrangeBpm + 600);
   }
 
   async function handleToggleMelodyPlay() {
@@ -262,8 +339,8 @@ export default function Home() {
     setIsPlaying(false); // playArrangement() below stops any other playback anyway; keep the UI in sync
     const melody = selectedSong.melody;
     const lastEnd = Math.max(0, ...melody.notes.map((n) => n.start + n.duration));
-    await playArrangement(melodyPreviewArrangement(melody, "lead"), BPM, undefined, setIsLoadingMelodyAudio);
-    window.setTimeout(() => setIsPlayingMelody(false), (lastEnd * 60 * 1000) / BPM + 600);
+    await playArrangement(melodyPreviewArrangement(melody, "lead"), meloBpm, undefined, setIsLoadingMelodyAudio);
+    window.setTimeout(() => setIsPlayingMelody(false), (lastEnd * 60 * 1000) / meloBpm + 600);
   }
 
   return (
@@ -276,9 +353,13 @@ export default function Home() {
       </Link>
       <main className="flex flex-1 w-full flex-col items-center gap-8 py-12 px-4 sm:px-8">
         <div className="w-full max-w-3xl flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-            DriftScore
-          </h1>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static export (output: "export") can't use next/image's optimizer */}
+            <img src="/logo.png" alt="" className="h-10 w-10 object-contain" />
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+              DriftScore
+            </h1>
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             知ってる曲を選んで、好きなジャンルにアレンジしてみましょう。
           </p>
@@ -288,16 +369,16 @@ export default function Home() {
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">1. 曲を選ぶ</h2>
           <SongPicker compact selectedId={selectedSong?.id ?? null} onSelect={setSelectedSong} />
           <div className="flex flex-wrap gap-2">
-            {([8, 16] as const).map((barCount) => (
+            {([8, 12, 16] as const).map((barCount) => (
               <button
                 key={barCount}
                 type="button"
                 onClick={() => {
-                  const { melody, keyLabel } = generateRandomMelody(barCount);
+                  const { melody } = generateRandomMelody(barCount);
                   setSelectedSong({
                     id: `random-${Date.now()}`,
                     title: "ランダムテーマ",
-                    attribution: `自動生成(即興・${barCount}小節・${keyLabel})`,
+                    attribution: `自動生成(即興・${barCount}小節)`,
                     melody,
                   });
                 }}
@@ -315,16 +396,19 @@ export default function Home() {
                 (ドラッグで音高、ダブルクリックで長さを編集できます)
               </p>
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={handleToggleMelodyPlay}
-                  disabled={isLoadingMelodyAudio}
-                  className="absolute left-2 top-2 z-10 rounded-full bg-blue-400 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isLoadingMelodyAudio ? "音源読み込み中..." : isPlayingMelody ? "■ 停止" : "▶ 再生"}
-                </button>
+                <div className="absolute left-2 top-2 z-10 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleMelodyPlay}
+                    disabled={isLoadingMelodyAudio}
+                    className="rounded-full bg-blue-400 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoadingMelodyAudio ? "音源読み込み中..." : isPlayingMelody ? "■ 停止" : "▶ 再生"}
+                  </button>
+                  <TempoControl bpm={meloBpm} onChange={setMeloBpm} />
+                </div>
                 <ScoreViewer
-                  musicXml={melodyToMusicXml(selectedSong.melody, selectedSong.title)}
+                  musicXml={melodyToMusicXml(selectedSong.melody, `${selectedSong.title}(${estimateKeyLabel(selectedSong.melody)})`)}
                   title={selectedSong.title}
                   compact
                   arrangement={melodyPreviewArrangement(selectedSong.melody)}
@@ -383,6 +467,12 @@ export default function Home() {
                   >
                     {isLoadingAudio ? "音源読み込み中..." : isPlaying ? "■ 停止" : "▶ 再生"}
                   </button>
+                  <TempoControl bpm={arrangeBpm} onChange={setArrangeBpm} />
+                  {keyLabel(arrangement.key, arrangement.genre) && (
+                    <span className="self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      調: {keyLabel(arrangement.key, arrangement.genre)}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={handleUndo}
@@ -451,7 +541,14 @@ export default function Home() {
                   )}
                 </div>
                 <ScoreViewer
-                  musicXml={arrangementToMusicXml(arrangement, selectedSong?.title, selectedPartId ?? undefined, mutedPartIds)}
+                  musicXml={arrangementToMusicXml(
+                    arrangement,
+                    keyLabel(arrangement.key, arrangement.genre)
+                      ? `${selectedSong?.title}(${keyLabel(arrangement.key, arrangement.genre)})`
+                      : selectedSong?.title,
+                    selectedPartId ?? undefined,
+                    mutedPartIds,
+                  )}
                   title={selectedSong?.title}
                   arrangement={arrangement}
                   onCursorReady={setCursor}
