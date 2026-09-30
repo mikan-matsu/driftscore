@@ -85,30 +85,55 @@ function resolveGuitarGmName(genre: string | undefined): string {
 // smplr Soundfont API, just a different `kit` value.
 const KIT = "MusyngKite" as const;
 
+// Guitar specifically stayed on FluidR3_GM rather than following every other
+// instrument to MusyngKite: user feedback (2026-09-28) on MusyngKite's
+// electric_guitar_jazz was "sounds like a synth, not a real guitar" — the
+// same category of per-instrument soundfont-quality gap already documented
+// above for MusyngKite fixing brass/reed but FluidR3_GM being fine for
+// flute/clarinet/tuba, just running the other direction for this one
+// instrument. `smplr`'s only other sample libraries (VCSL/Versilian) were
+// checked and have zero guitar entries in their ~183-instrument catalog, so
+// a GM soundfont patch is the only option either way — this is a same-cost
+// swap to test, not a guess with a real downside. Revert to MusyngKite here
+// if FluidR3_GM's guitar patches turn out no better once actually heard.
+const GUITAR_KIT = "FluidR3_GM" as const;
+
 interface CachedInstrument {
   instrument: Smplr;
   ready: Promise<void>;
 }
 
 /** Module-level cache, not per-playback: instruments are fetched once per
- * GM name for the whole session and reused across every subsequent
- * generation/replay, so only genuinely new instruments (a newly-picked
- * custom ensemble instrument the session hasn't used yet) cost a fetch. */
+ * (kit, GM name) pair for the whole session and reused across every
+ * subsequent generation/replay, so only genuinely new instruments (a
+ * newly-picked custom ensemble instrument the session hasn't used yet) cost
+ * a fetch. Keyed by kit as well as name since guitar now uses a different
+ * kit than everything else (see GUITAR_KIT above). */
 const cache = new Map<string, CachedInstrument>();
 
 function getAudioContext(Tone: typeof import("tone")): BaseAudioContext {
   return Tone.getContext().rawContext as unknown as BaseAudioContext;
 }
 
-function loadOne(Tone: typeof import("tone"), gmName: string): CachedInstrument {
-  const existing = cache.get(gmName);
+// SplendidGrandPiano's recordings sit noticeably louder in the mix than the
+// GM soundfont instruments at the same nominal `volume`/note velocity — user
+// feedback (2026-09-28): "ピアノの音がデカすぎる" (piano's too loud) on a
+// small combo where it's just a comping role, not the melody. Every other
+// instrument uses smplr's default (100); piano alone is scaled down here
+// rather than touching per-note velocity (which also drives dynamics/swing
+// feel elsewhere) or the mix as a whole.
+const PIANO_VOLUME = 70;
+
+function loadOne(Tone: typeof import("tone"), gmName: string, kit: string): CachedInstrument {
+  const cacheKey = `${kit}/${gmName}`;
+  const existing = cache.get(cacheKey);
   if (existing) return existing;
 
   const ctx = getAudioContext(Tone);
   const instrument =
-    gmName === "piano" ? SplendidGrandPiano(ctx) : Soundfont(ctx, { kit: KIT, instrument: gmName });
+    gmName === "piano" ? SplendidGrandPiano(ctx, { volume: PIANO_VOLUME }) : Soundfont(ctx, { kit, instrument: gmName });
   const entry: CachedInstrument = { instrument, ready: instrument.ready };
-  cache.set(gmName, entry);
+  cache.set(cacheKey, entry);
   return entry;
 }
 
@@ -130,20 +155,23 @@ export async function loadSampledInstruments(
     if (id === "guitar") return resolveGuitarGmName(genre);
     return GM_INSTRUMENT[id];
   };
+  const resolveKit = (id: string): string => (id === "guitar" ? GUITAR_KIT : KIT);
 
-  const gmNames = new Set<string>();
+  const needed = new Map<string, { gmName: string; kit: string }>();
   for (const id of instrumentIds) {
     const gmName = resolveGmName(id);
-    if (gmName) gmNames.add(gmName);
+    if (!gmName) continue;
+    const kit = resolveKit(id);
+    needed.set(`${kit}/${gmName}`, { gmName, kit });
   }
 
-  const entries = [...gmNames].map((name) => [name, loadOne(Tone, name)] as const);
-  await Promise.all(entries.map(([, entry]) => entry.ready));
+  const entries = [...needed.values()].map(({ gmName, kit }) => loadOne(Tone, gmName, kit));
+  await Promise.all(entries.map((entry) => entry.ready));
 
   const byId = new Map<string, Smplr>();
   for (const id of instrumentIds) {
     const gmName = resolveGmName(id);
-    const entry = gmName ? cache.get(gmName) : undefined;
+    const entry = gmName ? cache.get(`${resolveKit(id)}/${gmName}`) : undefined;
     if (entry) byId.set(id, entry.instrument);
   }
   return byId;
