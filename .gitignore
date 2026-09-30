@@ -21,6 +21,9 @@ cdk.out/
 .vscode/
 .idea/
 
+# Claude Code local permission cache (machine-specific, not shared config)
+.claude/settings.local.json
+
 # Non-public project docs (requirements/strategy — local only)
 /CLAUDE.md
 
