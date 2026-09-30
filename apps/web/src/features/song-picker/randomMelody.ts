@@ -41,16 +41,25 @@ const HALF = TICKS_PER_BEAT * 2;
 // figure instead of a single oddly-short note stranded among quarters.
 // Weighted by repetition: quarter-heavy like before, with eighths/sixteenths/
 // triplets now genuinely in the mix rather than absent entirely.
+// This is a "theme" (テーマ) — something a beginner could sing back after one
+// listen — not a solo/fill, so it should read as simple: mostly quarters and
+// eighth-note pairs, an occasional half note to breathe, and only a rare
+// sixteenth/triplet flourish rather than the two being anywhere near as
+// common as a plain quarter. A first pass here weighted triplets/sixteenths
+// almost as heavily as quarters, which produced a busy, non-singable line —
+// clearly wrong for a "theme."
 const RHYTHM_CELLS: number[][] = [
   [QUARTER],
   [QUARTER],
   [QUARTER],
+  [QUARTER],
+  [QUARTER],
+  [HALF],
   [HALF],
   [EIGHTH, EIGHTH],
   [EIGHTH, EIGHTH],
+  [EIGHTH, EIGHTH],
   [SIXTEENTH, SIXTEENTH, EIGHTH],
-  [EIGHTH, SIXTEENTH, SIXTEENTH],
-  [SIXTEENTH, SIXTEENTH, SIXTEENTH, SIXTEENTH],
   [TRIPLET_EIGHTH, TRIPLET_EIGHTH, TRIPLET_EIGHTH],
 ];
 
@@ -101,7 +110,12 @@ export function generateRandomMelody(barCount = 8): RandomMelodyResult {
       cell = new Array(remaining / EIGHTH).fill(EIGHTH);
     }
     for (const ticks of cell) {
-      degree = Math.max(MIN_DEGREE, Math.min(MAX_DEGREE, degree + pick(STEP_CHOICES)));
+      // A theme should open on the tonic, not wherever the first random step
+      // happens to land — only the walk from the SECOND note onward is
+      // actually random.
+      if (id > 0) {
+        degree = Math.max(MIN_DEGREE, Math.min(MAX_DEGREE, degree + pick(STEP_CHOICES)));
+      }
       const octave = Math.floor(degree / 7);
       const idx = ((degree % 7) + 7) % 7;
       const pitch = root + octave * 12 + scale[idx];
@@ -110,18 +124,30 @@ export function generateRandomMelody(barCount = 8): RandomMelodyResult {
     }
   }
 
-  // An unconstrained random walk can end on any scale degree, which reads as
-  // unresolved/unfinished — a real short theme almost always cadences back to
-  // the tonic at the end. Overriding just the LAST note's pitch to the
-  // nearest-octave tonic (scale degree 0, i.e. whichever of degree 0 or 7 is
-  // closer to where the walk actually ended up) gives that resolved feel
-  // without needing to constrain the whole walk. Both 0 and 7 are always
-  // within [MIN_DEGREE, MAX_DEGREE] (-3..10), so this never needs clamping.
-  const lastNote = notes[notes.length - 1];
-  if (lastNote) {
-    const tonicDegree = Math.abs(degree - 0) <= Math.abs(degree - 7) ? 0 : 7;
-    lastNote.pitch = root + Math.floor(tonicDegree / 7) * 12 + scale[0];
-  }
+  // An unconstrained random walk can end on any scale degree with whatever
+  // short rhythm-cell duration happened to land last, which reads as
+  // unresolved/still-going — not as a phrase actually ending. A real short
+  // theme needs a clearly sustained final tonic. Replacing every note that
+  // falls in the LAST bar with one single whole-bar tonic note (rather than
+  // just overriding the final note's own pitch/duration, which a first pass
+  // at this tried — the walk's last cell often lands on a short eighth or
+  // sixteenth right at the very end, and stretching just that one note out
+  // still reads oddly since it's still "one of several notes in a busy bar")
+  // gives an unambiguous cadence: the whole last bar is nothing but one long
+  // tonic note.
+  const lastBarStart = (barCount - 1) * BEATS_PER_BAR;
+  const keptNotes = notes.filter((n) => n.start < lastBarStart);
+  const tonicDegree = Math.abs(degree - 0) <= Math.abs(degree - 7) ? 0 : 7;
+  const finalPitch = root + Math.floor(tonicDegree / 7) * 12 + scale[0];
+  keptNotes.push({
+    id: `n${keptNotes.length}`,
+    pitch: finalPitch,
+    start: lastBarStart,
+    duration: BEATS_PER_BAR,
+    velocity: 100,
+  });
+  notes.length = 0;
+  notes.push(...keptNotes);
 
   const keyLabel = `${PITCH_CLASS_NAMES[rootPitchClass]}${isMinor ? "moll" : "dur"}`;
   return { melody: { beatsPerBar: BEATS_PER_BAR, notes }, keyLabel };
