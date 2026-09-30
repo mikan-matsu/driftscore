@@ -26,14 +26,22 @@ test("playback does not scroll the score away from its start", async ({ page }) 
   await page.getByRole("button", { name: "フル構成" }).click();
   await page.getByRole("button", { name: "アレンジを生成する" }).click();
 
-  const scoreContainer = page.locator(".overflow-x-auto").first();
+  // Scoped to "3. 結果" specifically — the melody-preview section above it
+  // (added later, previewing the raw tune before arranging) renders its own
+  // score in a `.overflow-x-auto` container too, and appears earlier in the
+  // DOM. An unscoped `.overflow-x-auto`/`再生` locator matches that preview
+  // first (it renders instantly, no network wait), silently testing the
+  // wrong, single-line, never-overflowing score instead of the actual
+  // generated arrangement.
+  const resultSection = page.locator("section", { hasText: "3. 結果" });
+  const scoreContainer = resultSection.locator(".overflow-x-auto").first();
   await expect(scoreContainer.locator("svg").first()).toBeVisible({ timeout: 20_000 });
 
   const scrollWidth = await scoreContainer.evaluate((el) => el.scrollWidth);
   const clientWidth = await scoreContainer.evaluate((el) => el.clientWidth);
   expect(scrollWidth).toBeGreaterThan(clientWidth); // sanity: this viewport/song-form actually overflows
 
-  await page.getByRole("button", { name: /再生/ }).click();
+  await resultSection.getByRole("button", { name: /再生/ }).click();
   await page.waitForTimeout(3000);
 
   await expect(scoreContainer).toHaveJSProperty("scrollLeft", 0);
