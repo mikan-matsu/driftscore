@@ -97,6 +97,18 @@ function pitchName(midiPitch: number): string {
  * staff units (that depends on the note's diatonic position/accidentals). Re-tune if either zoom changes. */
 const PX_PER_SEMITONE = 6;
 
+// OSMD reads the container's *measured* offsetWidth as each page's actual
+// pixel width, regardless of `pageFormat` (see the render effect's own
+// comment on this) — so a container with no width of its own stretches to
+// fill its parent (the wide, multi-page-capable result section) and OSMD
+// produces one huge, landscape-proportioned "page" containing the whole
+// piece instead of real A4-portrait pages. This is the width of a single
+// such page at this app's engraving zoom (osmd.zoom = 0.7); forcing the
+// container to it just for the render() call, then releasing it, lets OSMD
+// paginate for real while still leaving the (now correctly page-widthed)
+// SVGs free to lay out side by side via the container's own CSS grid.
+const A4_PAGE_WIDTH_PX = 734;
+
 /** Cycle of selectable note durations in beats (16th through whole note), for double-click
  * duration editing. Matches the base durations arrangementToMusicXml.ts's noteTypeAndDots()
  * already knows how to render (it also handles the *1.5 dotted variant of each, but dotted
@@ -162,8 +174,24 @@ export function ScoreViewer({
         if (cancelled || !containerRef.current) return;
 
         containerRef.current.innerHTML = "";
+        // Constrain to a single page's width only for the render() call
+        // below (see A4_PAGE_WIDTH_PX) — released right after, so the CSS
+        // grid can size itself around the resulting, already-fixed-width
+        // page SVGs instead of the container dictating page size forever.
+        if (!compact) containerRef.current.style.width = `${A4_PAGE_WIDTH_PX}px`;
         const osmd = new OpenSheetMusicDisplay(containerRef.current, {
-          autoResize: true,
+          // Was `true` — OSMD's autoResize sets up a ResizeObserver on this
+          // same container and re-lays-out (using whatever width it sees at
+          // that moment) on every resize. Since the fixed-page-width trick
+          // right below deliberately resizes this container twice (narrow it
+          // to one page's width, render, then release it back to auto so the
+          // CSS grid can lay pages out side by side), autoResize would catch
+          // that second resize and immediately re-render at the container's
+          // now-wide auto width — silently undoing the fix and collapsing
+          // everything back into one oversized page. Nothing else in this
+          // component re-renders on window resize, so disabling this has no
+          // other effect.
+          autoResize: false,
           backend: "svg",
           drawTitle: Boolean(title),
           // follow: false — during actual playback the cursor is driven
@@ -237,6 +265,7 @@ export function ScoreViewer({
         await osmd.load(musicXml);
         if (cancelled) return;
         osmd.render();
+        if (!compact) containerRef.current.style.width = "";
         setError(null);
         osmdRef.current = osmd as unknown as OsmdInstance;
         onCursorReady?.(osmd.cursor as ScoreCursor);
